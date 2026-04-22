@@ -1,5 +1,6 @@
 package ru.practicum.service.admin_ewm.controller;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,8 +27,8 @@ public class AdminCommentController {
             @RequestParam(required = false) Long eventId,
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String text,
-            @RequestParam(defaultValue = "0") Integer from,
-            @RequestParam(defaultValue = "10") Integer size
+            @RequestParam(defaultValue = "0") @Min(0) Integer from,
+            @RequestParam(defaultValue = "10") @Min(1) Integer size
     ) {
         log.info("GET /admin/comments with params: eventId={}, userId={} , text={}", eventId, userId, text);
         Pageable pageable = PageRequest.of(from / size, size);

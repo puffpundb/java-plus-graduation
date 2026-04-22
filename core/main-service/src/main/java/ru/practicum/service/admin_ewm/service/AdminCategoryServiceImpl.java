@@ -31,7 +31,6 @@ public class AdminCategoryServiceImpl implements AdminCategoryService {
         log.debug("Создание сущности Category из DTO: {}", dto);
         Category category = CategoryMapper.toCategoryEntity(dto);
 
-        log.debug("Сохранение категории в базу данных");
         Category saved = repository.save(category);
 
         log.info("Категория успешно создана: id={}, name={}", saved.getId(), saved.getName());
@@ -49,10 +48,11 @@ public class AdminCategoryServiceImpl implements AdminCategoryService {
                 });
 
         log.debug("Проверка связанных событий для категории id={}", catId);
-        if (!category.getEvents().isEmpty()) {
-            log.warn("Нельзя удалить категорию id={}: связано {} событий", catId, category.getEvents().size());
-            throw new ConflictException("Нельзя удалить категорию с id=" + catId + " так как с ней связаны события." +
-                    " Количество: " + category.getEvents().size());
+        long eventsCount = repository.countEventsByCategoryId(catId);
+        if (eventsCount > 0) {
+            log.warn("Нельзя удалить категорию id={}: связано {} событий", catId, eventsCount);
+            throw new ConflictException("Нельзя удалить категорию с id=" + catId +
+                    " так как с ней связаны события. Количество: " + eventsCount);
         }
 
         log.debug("Удаление категории id={} из базы данных", catId);
