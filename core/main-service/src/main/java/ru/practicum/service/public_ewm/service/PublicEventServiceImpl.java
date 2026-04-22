@@ -22,9 +22,7 @@ import ru.practicum.service.model.Event;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -54,11 +52,23 @@ public class PublicEventServiceImpl implements PublicEventService {
         log.info("PublicEventService: Поиск ивентов с заданными параметрами");
         Pageable pageable = PageRequest.of(from / size, size);
         List<Event> eventsList = eventRepository.findPublicEvents(text, categories, paid, rangeStart, rangeEnd, onlyAvailable, pageable);
+
+        if (eventsList.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        LocalDateTime startStat = eventsList.stream()
+                .map(Event::getPublishedOn)
+                .filter(Objects::nonNull)
+                .min(LocalDateTime::compareTo)
+                .orElseThrow(() -> new IllegalStateException("У событий отсутствует дата публикации"));
+        LocalDateTime statEnd = LocalDateTime.now();
+
         log.info("PublicEventService: {}", eventsList);
         List<String> eventsUrisList = eventsList.stream().map(event -> URI_EVENT_ENDPOINT + event.getId()).toList();
 
         log.info("PublicEventService: Выгрузка статистики по найденным ивентам");
-        List<HitsCounterResponseDto> hitsCounterList = statClient.getHits(rangeStart, rangeEnd, eventsUrisList, false);
+        List<HitsCounterResponseDto> hitsCounterList = statClient.getHits(startStat, statEnd, eventsUrisList, false);
         log.info("PublicEventService: {}", hitsCounterList);
         Map<Long, Long> eventIdEventHits =  hitsCounterList.stream()
                 .collect(Collectors.toMap(hitsCounter ->
@@ -95,7 +105,7 @@ public class PublicEventServiceImpl implements PublicEventService {
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constant.DATE_TIME_FORMAT)))
         );
 
-        List<HitsCounterResponseDto> hitsCounter = statClient.getHits(VERY_PAST,
+        List<HitsCounterResponseDto> hitsCounter = statClient.getHits(event.getPublishedOn(),
                 LocalDateTime.now(),
                 List.of(URI_EVENT_ENDPOINT + event.getId()),
                 true);
