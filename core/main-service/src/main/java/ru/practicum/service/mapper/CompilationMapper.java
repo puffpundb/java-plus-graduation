@@ -6,7 +6,8 @@ import ru.practicum.service.dto.EventShortDto;
 import ru.practicum.service.dto.NewCompilationDto;
 import ru.practicum.service.model.Compilation;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 
 @UtilityClass
 public class CompilationMapper {
