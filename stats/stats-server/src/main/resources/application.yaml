@@ -1,6 +1,6 @@
 server:
   address: 0.0.0.0
-  port: 9090
+  port: 9090 #Наставник сказал оставить 9090, тесты через него идут
 
 spring:
   application:
