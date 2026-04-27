@@ -51,7 +51,7 @@ public class CompilationService {
 
 		Set<Event> allEvents = compilationsList.stream().flatMap(comp -> comp.getEvents().stream()).collect(Collectors.toSet());
 
-		List<Long> initiatorsIds = allEvents.stream().map(Event::getInitiator).distinct().toList();
+		List<Long> initiatorsIds = allEvents.stream().map(Event::getInitiatorId).distinct().toList();
 
 		List<UserDto> users = userFeignClient.findUsers(initiatorsIds, 0, initiatorsIds.size());
 
@@ -71,7 +71,7 @@ public class CompilationService {
 		for (Compilation comp : compilationsList) {
 			Set<EventShortDto> eventDtos = comp.getEvents().stream()
 					.map(event -> {
-						UserDto initiator = userMap.get(event.getInitiator());
+						UserDto initiator = userMap.get(event.getInitiatorId());
 						Long views = eventViews.getOrDefault(event.getId(), 0L);
 						return EventMapper.toEventShortDto(event, initiator, views);
 					})
@@ -95,7 +95,7 @@ public class CompilationService {
 		}
 
 		List<Long> initiatorIds = events.stream()
-				.map(Event::getInitiator)
+				.map(Event::getInitiatorId)
 				.distinct()
 				.toList();
 
@@ -108,10 +108,10 @@ public class CompilationService {
 
 		return events.stream()
 				.map(event -> {
-					UserDto initiator = userMap.get(event.getInitiator());
+					UserDto initiator = userMap.get(event.getInitiatorId());
 					// если пользователя почему-то нет, можно создать дефолтного или бросить исключение
 					if (initiator == null) {
-						throw new NotFoundException("User not found: " + event.getInitiator());
+						throw new NotFoundException("User not found: " + event.getInitiatorId());
 					}
 					Long views = eventIdEventHits.getOrDefault(URI_EVENT_ENDPOINT + event.getId(), 0L);
 					return EventMapper.toEventShortDto(event, initiator, views);

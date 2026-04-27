@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.iteractionapi.dto.event.EventRequestStatusUpdateRequest;
@@ -22,17 +23,16 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping(path = "/users/{userId}/requests")
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class RequestController implements RequestFeignClient {
+public class RequestController {
 	final RequestService requestService;
 
 	@GetMapping
-	@Override
 	public List<ParticipationRequestDto> getInfoOnParticipation(@PathVariable(value = "userId") Long userId) {
 		return requestService.getInfoOnParticipation(userId);
 	}
 
 	@PostMapping
-	@Override
+	@ResponseStatus(HttpStatus.CREATED)
 	public ParticipationRequestDto createRequestForParticipation(@PathVariable(value = "userId") Long userId,
 																 @RequestParam(value = "eventId", required = true) Long eventId,
 																 HttpServletRequest request) {
@@ -40,22 +40,23 @@ public class RequestController implements RequestFeignClient {
 	}
 
 	@PatchMapping("/{requestId}/cancel")
-	@Override
 	public ParticipationRequestDto canceledRequestForParticipation(@PathVariable(value = "userId") Long userId,
 																   @PathVariable(value = "requestId") Long requestId) {
 		return requestService.canceledRequestForParticipation(userId, requestId);
 	}
 
-	@Override
+	@GetMapping("/{eventId}/requests")
 	public List<ParticipationRequestDto> getInfoRequest(@PathVariable(value = "userId") Long userId,
 														@PathVariable(value = "eventId") Long eventId) {
 		return requestService.getInfoRequest(userId, eventId);
 	}
 
-	@Override
-	public EventRequestStatusUpdateResult updateStatusRequest(@PathVariable(value = "userId") Long userId,
-															  @PathVariable(value = "eventId") Long eventId,
+	@PutMapping("/{eventId}/requests")
+	public EventRequestStatusUpdateResult updateStatusRequest(@PathVariable("userId") Long userId,
+															  @PathVariable("eventId") Long eventId,
 															  @Valid @RequestBody EventRequestStatusUpdateRequest updateRequest) {
+		log.info("Received request to update requests statuses: userId={}, eventId={}, requestIds={}, status={}",
+				userId, eventId, updateRequest.getRequestIds(), updateRequest.getStatus());
 		return requestService.updateStatusRequest(userId, eventId, updateRequest);
 	}
 }

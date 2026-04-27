@@ -23,11 +23,10 @@ import java.util.List;
 @RequestMapping("/events")
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Slf4j
-public class PublicEventController implements PublicEventFeignClient {
+public class PublicEventController {
 	final EventService eventService;
 
 	@GetMapping
-	@Override
 	public List<EventShortDto> getEvents(@Valid EventSearchParams params,
 										 HttpServletRequest request) {
 		log.info("PublicEventController: вызов эндпоинта GET events/ " +
@@ -48,8 +47,8 @@ public class PublicEventController implements PublicEventFeignClient {
 				request);
 	}
 
+
 	@GetMapping("/{id}")
-	@Override
 	public EventFullDto getEventById(@PathVariable(value = "id") Long id,
 									 HttpServletRequest request) {
 		log.info("PublicEventController: вызов эндпоинта GET events/{}", id);

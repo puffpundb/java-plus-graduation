@@ -6,11 +6,9 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import ru.practicum.eventservice.service.CompilationService;
 import ru.practicum.iteractionapi.dto.event.CompilationDto;
 import ru.practicum.iteractionapi.dto.event.NewCompilationDto;
@@ -23,22 +21,24 @@ import ru.practicum.iteractionapi.feignapi.eventfeignclient.compilation.AdminCom
 @Validated
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class AdminCompilationController implements AdminCompilationFeignClient {
+public class AdminCompilationController {
 	final CompilationService compilationService;
 
-	@Override
+	@ResponseStatus(HttpStatus.CREATED)
+	@PostMapping
 	public CompilationDto createCompilation(@RequestBody @Valid NewCompilationDto dto) {
 		log.info("POST /admin/compilations: {}", dto);
 		return compilationService.createCompilation(dto);
 	}
 
-	@Override
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	@DeleteMapping("/{compId}")
 	public void deleteCompilation(@PathVariable(name = "compId") @Positive Long compId) {
 		log.info("DELETE /admin/compilations/{}", compId);
 		compilationService.deleteCompilation(compId);
 	}
 
-	@Override
+	@PatchMapping("/{compId}")
 	public CompilationDto updateCompilation(@PathVariable(name = "compId") @Positive Long compId,
 											@RequestBody @Valid UpdateCompilationRequest request) {
 		log.info("PATCH /admin/compilations/{}", compId);

@@ -1,15 +1,25 @@
 package ru.practicum.iteractionapi.feignapi.eventfeignclient.event;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.cloud.openfeign.SpringQueryMap;
+import org.springframework.web.bind.annotation.*;
+import ru.practicum.iteractionapi.dto.event.EventFullDto;
+import ru.practicum.iteractionapi.dto.event.EventSearchParams;
+import ru.practicum.iteractionapi.dto.event.EventShortDto;
 
-@FeignClient(name = "event-service")
-@RequestMapping("/internal/events")
+import java.util.List;
+
+@FeignClient(name = "event-service", contextId = "InternalEventFeignClient")
 public interface InternalEventFeignClient {
-	@PatchMapping("/{eventId}/confirmed-requests")
+	@PutMapping("/internal/events/{eventId}/confirmed-requests")
 	void setConfirmedRequests(@PathVariable Long eventId,
 							  @RequestParam Long confirmedRequests);
+
+	@GetMapping("/events")
+	List<EventShortDto> getEvents(@SpringQueryMap @Valid EventSearchParams params);
+
+	@GetMapping("/events/{id}")
+	EventFullDto getEventById(@PathVariable(value = "id") Long id);
 }

@@ -22,12 +22,16 @@ import ru.practicum.eventservice.repository.EventRepository;
 import ru.practicum.iteractionapi.dto.Constant;
 import ru.practicum.iteractionapi.dto.enums.AdminStateAction;
 import ru.practicum.iteractionapi.dto.event.*;
+import ru.practicum.iteractionapi.dto.request.ParticipationRequestDto;
 import ru.practicum.iteractionapi.dto.user.UserDto;
 import ru.practicum.iteractionapi.error.ConflictException;
 import ru.practicum.iteractionapi.error.NotFoundException;
 import ru.practicum.iteractionapi.error.ValidationException;
+import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.InternalEventFeignClient;
+import ru.practicum.iteractionapi.feignapi.requestfeignclient.RequestFeignClient;
 import ru.practicum.iteractionapi.feignapi.userfeignclient.UserFeignClient;
 import ru.practicum.iteractionapi.model.enums.State;
+import ru.practicum.iteractionapi.model.enums.Status;
 import ru.practicum.iteractionapi.statistics.StatisticsService;
 
 import java.time.LocalDateTime;
@@ -48,6 +52,7 @@ public class EventService {
 	final StatisticsService statsService;
 
 	final UserFeignClient userFeignClient;
+	final RequestFeignClient requestFeignClient;
 
 	static final String URI_EVENT_ENDPOINT = "/events/";
 
@@ -72,7 +77,7 @@ public class EventService {
 			return Collections.emptyList();
 		}
 
-		List<Long> initiatorIds = eventsList.stream().map(Event::getInitiator).distinct().toList();
+		List<Long> initiatorIds = eventsList.stream().map(Event::getInitiatorId).distinct().toList();
 		List<UserDto> users = userFeignClient.findUsers(initiatorIds, 0, initiatorIds.size());
 		Map<Long, UserDto> userMap = users.stream()
 				.collect(Collectors.toMap(UserDto::getId, Function.identity()));
@@ -96,7 +101,7 @@ public class EventService {
 
 		List<EventShortDto> result = eventsList.stream()
 				.map(event -> {
-					UserDto initiator = userMap.get(event.getInitiator());
+					UserDto initiator = userMap.get(event.getInitiatorId());
 					Long views = eventIdEventHits.getOrDefault(event.getId(), 0L);
 					return EventMapper.toEventShortDto(event, initiator, views);
 				})
@@ -124,11 +129,13 @@ public class EventService {
 
 		log.info("PublicEventService: Выгрузка статистики по найденному ивенту");
 
-		statClient.hit(new StatHitRequestDto(Constant.SERVICE_POSTFIX,
-				request.getRequestURI(),
-				request.getRemoteAddr(),
-				LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constant.DATE_TIME_FORMAT)))
-		);
+		if (request != null) {
+			statClient.hit(new StatHitRequestDto(Constant.SERVICE_POSTFIX,
+					request.getRequestURI(),
+					request.getRemoteAddr(),
+					LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constant.DATE_TIME_FORMAT)))
+			);
+		}
 
 		List<HitsCounterResponseDto> hitsCounter = statClient.getHits(event.getPublishedOn(),
 				LocalDateTime.now(),
@@ -136,7 +143,7 @@ public class EventService {
 				true);
 		Long views = hitsCounter.isEmpty() ? 0L : hitsCounter.getFirst().getHits();
 
-		UserDto userDto = userFeignClient.findUsers(List.of(event.getInitiator()), 0 , 1).getFirst();
+		UserDto userDto = userFeignClient.findUsers(List.of(event.getInitiatorId()), 0 , 1).getFirst();
 
 		return EventMapper.toEventFullDto(event, userDto, views);
 	}
@@ -155,7 +162,7 @@ public class EventService {
 		int page = from.intValue() / size.intValue();
 		Pageable pageable = PageRequest.of(page, size.intValue());
 
-		Page<Event> eventPage = eventRepository.findByInitiator_Id(userId, pageable);
+		Page<Event> eventPage = eventRepository.findByInitiatorId(userId, pageable);
 
 		UserDto initiator = userFeignClient.findUsers(List.of(userId), 0, 1).getFirst();
 
@@ -246,7 +253,7 @@ public class EventService {
 		);
 
 		List<Long> initiatorIds = events.stream()
-				.map(Event::getInitiator)
+				.map(Event::getInitiatorId)
 				.distinct()
 				.toList();
 
@@ -263,9 +270,9 @@ public class EventService {
 		return events.stream()
 				.map(event -> {
 					Long views = eventHits.getOrDefault(URI_EVENT_ENDPOINT + event.getId(), 0L);
-					UserDto initiator = userMap.get(event.getInitiator());
+					UserDto initiator = userMap.get(event.getInitiatorId());
 					if (initiator == null) {
-						throw new NotFoundException("User not found: " + event.getInitiator());
+						throw new NotFoundException("User not found: " + event.getInitiatorId());
 					}
 					return EventMapper.toEventFullDto(event, initiator, views);
 				})
@@ -312,9 +319,9 @@ public class EventService {
 		updateEventFields(event, request);
 		Event updatedEvent = eventRepository.save(event);
 
-		List<UserDto> users = userFeignClient.findUsers(List.of(updatedEvent.getInitiator()), 0, 1);
+		List<UserDto> users = userFeignClient.findUsers(List.of(updatedEvent.getInitiatorId()), 0, 1);
 		if (users.isEmpty()) {
-			throw new NotFoundException("Пользователь не найден: " + updatedEvent.getInitiator());
+			throw new NotFoundException("Пользователь не найден: " + updatedEvent.getInitiatorId());
 		}
 		UserDto initiator = users.getFirst();
 
@@ -370,9 +377,17 @@ public class EventService {
 
 	@Transactional
 	public void setConfirmedRequests(Long eventId, Long confirmedRequests) {
+		log.info("Updating confirmed_requests for event {} to {}", eventId, confirmedRequests);
 		int updated = eventRepository.updateConfirmedRequests(eventId, confirmedRequests);
+		log.info("Updated rows: {}", updated);
 		if (updated == 0) {
 			throw new NotFoundException("Event not found");
 		}
+	}
+
+	@Transactional
+	public EventRequestStatusUpdateResult updateStatusRequest(Long userId, Long eventId,
+															  EventRequestStatusUpdateRequest updateRequest) {
+		return requestFeignClient.updateStatusRequest(userId, eventId, updateRequest);
 	}
 }

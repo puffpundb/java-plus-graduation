@@ -23,10 +23,9 @@ import java.util.List;
 @Validated
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class AdminCommentController implements AdminCommentFeignClient {
+public class AdminCommentController {
 	final CommentService commentService;
 
-	@Override
 	@GetMapping
 	public List<CommentAdminDto> findAll(@RequestParam(required = false) Long eventId,
 										 @RequestParam(required = false) Long userId,
@@ -39,14 +38,12 @@ public class AdminCommentController implements AdminCommentFeignClient {
 		return commentService.getAllComments(eventId, userId, text, pageable);
 	}
 
-	@Override
 	@GetMapping("/{commentId}")
 	public CommentAdminDto findOne(@PathVariable(name = "commentId") Long commentId) {
 		log.info("GET /admin/comments/{}", commentId);
 		return commentService.getCommentById(commentId);
 	}
 
-	@Override
 	@DeleteMapping("/{commentId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void deleteComment(@PathVariable(name = "commentId") @Positive Long commentId) {

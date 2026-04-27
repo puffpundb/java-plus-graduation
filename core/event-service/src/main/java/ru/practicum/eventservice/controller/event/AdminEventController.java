@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.eventservice.service.EventService;
@@ -22,10 +23,11 @@ import java.util.List;
 @Validated
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class AdminEventController implements AdminEventFeignClient {
+public class AdminEventController {
 	final EventService service;
 
-	@Override
+	@GetMapping
+	@ResponseStatus(HttpStatus.OK)
 	public List<EventFullDto> getEvents(@Valid @ModelAttribute AdminEventParam params) {
 		log.info("GET /admin/events c параметрами: " +
 						"users={}, states={}, categories={}, rangeStart={}, rangeEnd={}, from={}, size={}",
@@ -35,7 +37,8 @@ public class AdminEventController implements AdminEventFeignClient {
 		return service.getFullEvents(params);
 	}
 
-	@Override
+	@PatchMapping("/{eventId}")
+	@ResponseStatus(HttpStatus.OK)
 	public EventFullDto updateEvents(@PathVariable(name = "eventId") @Positive Long eventId,
 									 @RequestBody @Valid UpdateEventAdminRequest dto) {
 		log.info("PATCH /admin/events/{} с телом: {}", eventId, dto);

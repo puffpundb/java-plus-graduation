@@ -51,7 +51,7 @@ public class EventMapper {
         return Event.builder()
                 .annotation(newEventDto.getAnnotation())
                 .category(category)
-                .initiator(userId)
+                .initiatorId(userId)
                 .description(newEventDto.getDescription())
                 .eventDate(newEventDto.getEventDate())
                 .location(LocationMapper.locationDtoToLocation(newEventDto.getLocationDto()))

@@ -9,20 +9,19 @@ import ru.practicum.iteractionapi.dto.comment.CommentAdminDto;
 
 import java.util.List;
 
-@FeignClient(name = "comment-service")
-@RequestMapping("/admin/comments")
+@FeignClient(name = "comment-service", contextId = "AdminCommentFeignClient")
 public interface AdminCommentFeignClient {
-	@GetMapping
+	@GetMapping("/admin/comments")
 	List<CommentAdminDto> findAll(@RequestParam(required = false) Long eventId,
 								  @RequestParam(required = false) Long userId,
 								  @RequestParam(required = false) String text,
 								  @RequestParam(defaultValue = "0") @Min(0) Integer from,
 								  @RequestParam(defaultValue = "10") @Min(1) Integer size);
 
-	@GetMapping("/{commentId}")
+	@GetMapping("/admin/comments/{commentId}")
 	CommentAdminDto findOne(@PathVariable(name = "commentId") Long commentId);
 
-	@DeleteMapping("/{commentId}")
+	@DeleteMapping("/admin/comments/{commentId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	void deleteComment(@PathVariable(name = "commentId") @Positive Long commentId);
 }

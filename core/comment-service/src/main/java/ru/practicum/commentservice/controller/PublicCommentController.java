@@ -16,10 +16,9 @@ import java.util.List;
 @RequestMapping("/events/{eventId}/comments")
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Slf4j
-public class PublicCommentController implements PublicCommentFeignClient {
+public class PublicCommentController {
 	final CommentService commentService;
 
-	@Override
 	@GetMapping
 	public List<CommentDto> getCommentForEvent(@PathVariable(value = "eventId") Long eventId,
 											   @RequestParam(value = "from", defaultValue = "0") Integer from,

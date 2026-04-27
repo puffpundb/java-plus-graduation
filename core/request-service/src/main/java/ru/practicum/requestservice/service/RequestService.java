@@ -39,8 +39,88 @@ public class RequestService {
 	final InternalEventFeignClient internalEventFeignClient;
 	final UserFeignClient userFeignClient;
 
+	@Transactional
+	public EventRequestStatusUpdateResult updateStatusRequest(Long userId, Long eventId,
+															  EventRequestStatusUpdateRequest updateRequest) {
+		EventFullDto event = internalEventFeignClient.getEventById(eventId);
+
+		if (!event.getInitiatorDto().getId().equals(userId)) {
+			throw new ConflictException("Только владелец может обновить статус запроса");
+		}
+		if (!event.getRequestModeration() || event.getParticipantLimit() == 0) {
+			throw new ConflictException("Подтверждение заявок не требуется");
+		}
+
+		List<Long> requestIds = updateRequest.getRequestIds();
+		Status newStatus = updateRequest.getStatus();
+
+		List<Request> requests = requestRepository.findAllById(requestIds);
+		if (requests.size() != requestIds.size()) {
+			throw new NotFoundException("Некоторые заявки не найдены");
+		}
+
+		for (Request req : requests) {
+			if (req.getStatus() != Status.PENDING) {
+				throw new ConflictException("Статус заявки ID=" + req.getId() +
+						" нельзя изменить: текущий статус — " + req.getStatus());
+			}
+		}
+
+		Map<Long, Request> requestMap = requests.stream()
+				.collect(Collectors.toMap(Request::getId, r -> r));
+
+		List<ParticipationRequestDto> confirmedRequests = new ArrayList<>();
+		List<ParticipationRequestDto> rejectedRequests = new ArrayList<>();
+
+		if (newStatus == Status.CONFIRMED) {
+			long confirmed = event.getConfirmedRequests();
+			long limit = event.getParticipantLimit();
+
+			if (limit > 0 && confirmed >= limit) {
+				throw new ConflictException("Достигнут лимит участников события");
+			}
+
+			long availableSlots = (limit == 0) ? requests.size() : limit - confirmed;
+			int confirmedCount = 0;
+
+			for (Long id : requestIds) {
+				Request req = requestMap.get(id);
+				if (req == null) continue;
+				if (confirmedCount < availableSlots) {
+					req.setStatus(Status.CONFIRMED);
+					confirmedRequests.add(RequestMapper.toRequestDto(req));
+					confirmedCount++;
+				} else {
+					req.setStatus(Status.REJECTED);
+					rejectedRequests.add(RequestMapper.toRequestDto(req));
+				}
+			}
+
+			requestRepository.saveAll(requests);
+
+			if (confirmedCount > 0) {
+				long newConfirmed = confirmed + confirmedCount;
+				log.info("Updating confirmedRequests for event {}: new value = {}", eventId, newConfirmed);
+				internalEventFeignClient.setConfirmedRequests(eventId, newConfirmed);
+			}
+		} else if (newStatus == Status.REJECTED) {
+			for (Request req : requests) {
+				req.setStatus(Status.REJECTED);
+				rejectedRequests.add(RequestMapper.toRequestDto(req));
+			}
+			requestRepository.saveAll(requests);
+		} else {
+			throw new ConflictException("Недопустимый статус для обновления: " + newStatus);
+		}
+
+		return EventRequestStatusUpdateResult.builder()
+				.confirmedRequests(confirmedRequests)
+				.rejectedRequests(rejectedRequests)
+				.build();
+	}
+
 	private EventFullDto checkAndGetEvent(Long eventId) {
-		return publicEventFeignClient.getEventById(eventId, null);
+		return internalEventFeignClient.getEventById(eventId);
 	}
 
 	private void checkUser(Long userId) {
@@ -53,112 +133,6 @@ public class RequestService {
 		checkUser(userId);
 
 		return requestRepository.findAllByEventId(eventId).stream()
-				.map(RequestMapper::toRequestDto)
-				.toList();
-	}
-
-	@Transactional
-	public EventRequestStatusUpdateResult updateStatusRequest(Long userId, Long eventId,
-															  EventRequestStatusUpdateRequest updateRequest) {
-		EventFullDto event = checkAndGetEvent(eventId);
-
-		if (!event.getInitiatorDto().getId().equals(userId)) {
-			throw new ConflictException("Только владелец может обновить статус запроса");
-		}
-
-		if (!event.getRequestModeration() || event.getParticipantLimit() == 0) {
-			throw new ConflictException("Подтверждение заявок не требуется");
-		}
-
-		List<Long> userIds = updateRequest.getRequestIds();
-		Status status = updateRequest.getStatus();
-
-		List<Request> requests = requestRepository.findAllById(userIds);
-
-		for (Request request : requests) {
-			if (request.getStatus() != Status.PENDING) {
-				throw new ConflictException("Статус заявки ID=" + request.getId() +
-						" нельзя изменить: текущий статус — " + request.getStatus());
-			}
-		}
-
-		Map<Long, Request> requestMap = requests.stream()
-				.collect(Collectors.toMap(Request::getId, request -> request));
-
-		List<ParticipationRequestDto> confirmedRequests = new ArrayList<>();
-		List<ParticipationRequestDto> rejectedRequests = new ArrayList<>();
-
-		long confirmedCount = 0;
-
-		if (status.equals(Status.CONFIRMED)) {
-			long confirmed = event.getConfirmedRequests();
-			long limit = event.getParticipantLimit();
-
-			if (limit > 0 && confirmed >= limit) {
-				throw new ConflictException("Достигнут лимит участников события");
-			}
-
-			long availableSlots = (limit == 0) ? requests.size() : limit - confirmed;
-
-			if (availableSlots <= 0) {
-				for (Long id : userIds) {
-					Request request = requestMap.get(id);
-					if (request != null) {
-						request.setStatus(Status.REJECTED);
-						rejectedRequests.add(RequestMapper.toRequestDto(request));
-					}
-				}
-			} else {
-				for (Long id : userIds) {
-					Request request = requestMap.get(id);
-					if (request == null) continue;
-
-					if (confirmedCount < availableSlots) {
-						request.setStatus(Status.CONFIRMED);
-						confirmedRequests.add(RequestMapper.toRequestDto(request));
-						confirmedCount++;
-					} else {
-						request.setStatus(Status.REJECTED);
-						rejectedRequests.add(RequestMapper.toRequestDto(request));
-					}
-				}
-
-				event.setConfirmedRequests(confirmed + confirmedCount);
-
-			}
-
-		} else if (status.equals(Status.REJECTED)) {
-
-			for (Long requestId : userIds) {
-				Request request = requestMap.get(requestId);
-
-				if (request != null) {
-					request.setStatus(Status.REJECTED);
-					rejectedRequests.add(RequestMapper.toRequestDto(request));
-				}
-			}
-
-		} else {
-			throw new ConflictException("Недопустимый статус для обновления: " + status);
-		}
-
-		requestRepository.saveAll(requests);
-
-		if (!confirmedRequests.isEmpty()) {
-			long newConfirmed = event.getConfirmedRequests() + confirmedCount;
-			internalEventFeignClient.setConfirmedRequests(eventId, newConfirmed);
-		}
-
-		return EventRequestStatusUpdateResult.builder()
-				.confirmedRequests(confirmedRequests)
-				.rejectedRequests(rejectedRequests)
-				.build();
-	}
-
-	public List<ParticipationRequestDto> getInfoOnParticipation(Long userId) {
-		checkUser(userId);
-
-		return requestRepository.findAllByRequesterId(userId).stream()
 				.map(RequestMapper::toRequestDto)
 				.toList();
 	}
@@ -186,8 +160,8 @@ public class RequestService {
 		}
 
 		Request request = Request.builder()
-				.requester(userId)
-				.event(eventId)
+				.requesterId(userId)
+				.eventId(eventId)
 				.build();
 
 		if (!event.getRequestModeration() || event.getParticipantLimit() == 0) {
@@ -212,5 +186,15 @@ public class RequestService {
 			throw new NotFoundException("Такого запроса нет.");
 		}
 		return RequestMapper.toRequestDto(request.get());
+	}
+
+
+
+	public List<ParticipationRequestDto> getInfoOnParticipation(Long userId) {
+		checkUser(userId);
+
+		return requestRepository.findAllByRequesterId(userId).stream()
+				.map(RequestMapper::toRequestDto)
+				.toList();
 	}
 }

@@ -22,10 +22,10 @@ import java.util.List;
 @Validated
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class UserServiceController implements UserFeignClient {
+public class UserServiceController {
 	final UserService service;
 
-	@Override
+	@GetMapping
 	@ResponseStatus(HttpStatus.OK)
 	public List<UserDto> findUsers(@RequestParam(required = false) List<Long> ids,
 								   @RequestParam(name = "from", defaultValue = "0") Integer from,
@@ -34,14 +34,14 @@ public class UserServiceController implements UserFeignClient {
 		return service.getUsers(ids, from, size);
 	}
 
-	@Override
+	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	public UserDto newUser(@RequestBody @Valid NewUserRequest dto) {
 		log.info("Admin: Добавление нового пользователя: {}", dto);
 		return service.createUser(dto);
 	}
 
-	@Override
+	@DeleteMapping("/{userId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void deleteUser(@PathVariable(name = "userId") @Positive Long userId) {
 		log.info("Admin: Удаление пользователя с id={}", userId);

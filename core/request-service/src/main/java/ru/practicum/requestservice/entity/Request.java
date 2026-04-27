@@ -24,11 +24,11 @@ public class Request {
 
     @Column(name = "event_id")
     @ToString.Exclude
-    private Long event;
+    private Long eventId;
 
     @Column(name = "requester_id")
     @ToString.Exclude
-    private Long requester;
+    private Long requesterId;
 
     @Enumerated(EnumType.STRING)
     @Builder.Default

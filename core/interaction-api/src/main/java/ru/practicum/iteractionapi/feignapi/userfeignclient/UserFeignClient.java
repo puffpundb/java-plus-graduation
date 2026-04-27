@@ -11,20 +11,19 @@ import ru.practicum.iteractionapi.dto.user.UserDto;
 
 import java.util.List;
 
-@FeignClient(name = "user-service")
-@RequestMapping("/admin/users")
+@FeignClient(name = "user-service", contextId = "UserFeignClient")
 public interface UserFeignClient {
-	@GetMapping
+	@GetMapping("/admin/users")
 	@ResponseStatus(HttpStatus.OK)
 	public List<UserDto> findUsers(@RequestParam(required = false) List<Long> ids,
 								   @RequestParam(name = "from", defaultValue = "0") @PositiveOrZero Integer from,
 								   @RequestParam(name = "size", defaultValue = "10") @Positive Integer size);
 
-	@PostMapping
+	@PostMapping("/admin/users")
 	@ResponseStatus(HttpStatus.CREATED)
 	public UserDto newUser(@RequestBody @Valid NewUserRequest dto);
 
-	@DeleteMapping("/{userId}")
+	@DeleteMapping("/admin/users/{userId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void deleteUser(@PathVariable(name = "userId") @Positive Long userId);
 }

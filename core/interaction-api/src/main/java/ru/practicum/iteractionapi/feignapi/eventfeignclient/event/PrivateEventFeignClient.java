@@ -12,24 +12,23 @@ import ru.practicum.iteractionapi.dto.event.UpdateEventUserRequest;
 
 import java.util.List;
 
-@FeignClient(name = "event-service")
-@RequestMapping(path = "/users/{userId}/events")
+@FeignClient(name = "event-service", contextId = "PrivateEventFeignClient")
 public interface PrivateEventFeignClient {
-	@GetMapping
+	@GetMapping("/users/{userId}/events")
 	List<EventShortDto> getEventsByOwner(@PathVariable(value = "userId") Long userId,
 										 @RequestParam(value = "from", defaultValue = "0") @PositiveOrZero Long from,
 										 @RequestParam(value = "size", defaultValue = "10") @PositiveOrZero Long size);
 
-	@PostMapping
+	@PostMapping("/users/{userId}/events")
 	@ResponseStatus(HttpStatus.CREATED)
 	EventFullDto createEvent(@PathVariable(value = "userId") Long userId,
 							 @Valid @RequestBody NewEventDto newEventDto);
 
-	@GetMapping("/{eventId}")
+	@GetMapping("/users/{userId}/events/{eventId}")
 	EventFullDto getInfoEvent(@PathVariable(value = "userId") Long userId,
 							  @PathVariable(value = "eventId") Long eventId);
 
-	@PatchMapping("/{eventId}")
+	@PatchMapping("/users/{userId}/events/{eventId}")
 	EventFullDto updateEvent(@PathVariable(value = "userId") Long userId,
 							 @PathVariable(value = "eventId") Long eventId,
 							 @Valid @RequestBody UpdateEventUserRequest updateEventUserRequest);

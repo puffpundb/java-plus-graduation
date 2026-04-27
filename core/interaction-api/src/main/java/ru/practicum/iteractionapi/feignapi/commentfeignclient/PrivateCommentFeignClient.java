@@ -7,27 +7,26 @@ import org.springframework.web.bind.annotation.*;
 import ru.practicum.iteractionapi.dto.comment.CommentDto;
 import ru.practicum.iteractionapi.dto.comment.CommentRequestDto;
 
-@FeignClient(name = "comment-service")
-@RequestMapping(path = "/users/{userId}/events/{eventId}/comments")
+@FeignClient(name = "comment-service", contextId = "PrivateCommentFeignClient")
 public interface PrivateCommentFeignClient {
-	@PostMapping
+	@PostMapping("/users/{userId}/events/{eventId}/comments")
 	@ResponseStatus(HttpStatus.CREATED)
 	CommentDto createComment(@PathVariable(value = "userId") Long userId,
 							 @PathVariable(value = "eventId") Long eventId,
 							 @RequestBody @Valid CommentRequestDto commentRequestDto);
 
-	@PostMapping("/{commentId}/likes")
+	@PostMapping("/users/{userId}/events/{eventId}/comments/{commentId}/likes")
 	void addAndDeleteLikeComment(@PathVariable(value = "userId") Long userId,
 								 @PathVariable(value = "eventId") Long eventId,
 								 @PathVariable(value = "commentId") Long commentId);
 
-	@PatchMapping("/{commentId}")
+	@PatchMapping("/users/{userId}/events/{eventId}/comments/{commentId}")
 	CommentDto updateComment(@PathVariable(value = "userId") Long userId,
 							 @PathVariable(value = "eventId") Long eventId,
 							 @PathVariable(value = "commentId") Long commentId,
 							 @RequestBody @Valid CommentRequestDto commentRequestDto);
 
-	@DeleteMapping("/{commentId}")
+	@DeleteMapping("/users/{userId}/events/{eventId}/comments/{commentId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	void deleteComment(@PathVariable(value = "userId") Long userId,
 					   @PathVariable(value = "eventId") Long eventId,

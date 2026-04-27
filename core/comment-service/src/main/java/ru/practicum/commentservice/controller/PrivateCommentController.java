@@ -20,10 +20,9 @@ import ru.practicum.iteractionapi.feignapi.commentfeignclient.PrivateCommentFeig
 @RequiredArgsConstructor
 @RequestMapping(path = "/users/{userId}/events/{eventId}/comments")
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PrivateCommentController implements PrivateCommentFeignClient {
+public class PrivateCommentController {
 	final CommentService commentService;
 
-	@Override
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	public CommentDto createComment(@PathVariable(value = "userId") Long userId,
@@ -32,7 +31,6 @@ public class PrivateCommentController implements PrivateCommentFeignClient {
 		return commentService.createComment(userId, eventId, commentRequestDto);
 	}
 
-	@Override
 	@PostMapping("/{commentId}/likes")
 	public void addAndDeleteLikeComment(@PathVariable(value = "userId") Long userId,
 										@PathVariable(value = "eventId") Long eventId,
@@ -40,7 +38,6 @@ public class PrivateCommentController implements PrivateCommentFeignClient {
 		commentService.addAndDeleteLikeComment(userId, eventId, commentId);
 	}
 
-	@Override
 	@PatchMapping("/{commentId}")
 	public CommentDto updateComment(@PathVariable(value = "userId") Long userId,
 									@PathVariable(value = "eventId") Long eventId,
@@ -49,7 +46,6 @@ public class PrivateCommentController implements PrivateCommentFeignClient {
 		return commentService.updateComment(userId, eventId, commentId, commentRequestDto);
 	}
 
-	@Override
 	@DeleteMapping("/{commentId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void deleteComment(@PathVariable(value = "userId") Long userId,

@@ -9,10 +9,9 @@ import ru.practicum.iteractionapi.dto.comment.CommentDto;
 
 import java.util.List;
 
-@FeignClient(name = "comment-service")
-@RequestMapping("/events/{eventId}/comments")
+@FeignClient(name = "comment-service", contextId = "PublicCommentFeignClient")
 public interface PublicCommentFeignClient {
-	@GetMapping
+	@GetMapping("/events/{eventId}/comments")
 	List<CommentDto> getCommentForEvent(@PathVariable(value = "eventId") Long eventId,
 											   @RequestParam(value = "from", defaultValue = "0") Integer from,
 											   @RequestParam(value = "size", defaultValue = "10") Integer size);

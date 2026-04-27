@@ -17,10 +17,10 @@ import java.util.Set;
 public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findAllByIdIn(Set<Long> ids);
 
-    Page<Event> findByInitiator_Id(Long userId, Pageable pageable);
+    Page<Event> findByInitiatorId(Long userId, Pageable pageable);
 
     @Query("SELECT e FROM Event e " +
-            "WHERE (:users IS NULL OR e.initiator.id IN :users) " +
+            "WHERE (:users IS NULL OR e.initiatorId IN :users) " +
             "AND (:states IS NULL OR e.state IN :states) " +
             "AND (:categories IS NULL OR e.category.id IN :categories) " +
             "AND (e.eventDate >= :rangeStart) " +
@@ -37,7 +37,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     @Query("""
         SELECT e
         FROM Event e
-        WHERE e.state = ru.practicum.service.model.enums.State.PUBLISHED
+        WHERE e.state = ru.practicum.iteractionapi.model.enums.State.PUBLISHED
           AND (
                 :text IS NULL
                 OR LOWER(e.annotation) LIKE CONCAT('%', LOWER(CAST(:text AS string)), '%')

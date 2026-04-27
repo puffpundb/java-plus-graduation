@@ -9,18 +9,17 @@ import ru.practicum.iteractionapi.dto.event.CompilationDto;
 import ru.practicum.iteractionapi.dto.event.NewCompilationDto;
 import ru.practicum.iteractionapi.dto.event.UpdateCompilationRequest;
 
-@FeignClient(name = "event-service")
-@RequestMapping("/admin/compilations")
+@FeignClient(name = "event-service", contextId = "AdminCompilationFeignClient")
 public interface AdminCompilationFeignClient {
-	@PostMapping
+	@PostMapping("/admin/compilations")
 	@ResponseStatus(HttpStatus.CREATED)
 	CompilationDto createCompilation(@RequestBody @Valid NewCompilationDto dto);
 
-	@DeleteMapping("/{compId}")
+	@DeleteMapping("/admin/compilations/{compId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	void deleteCompilation(@PathVariable(name = "compId") @Positive Long compId);
 
-	@PatchMapping("/{compId}")
+	@PatchMapping("/admin/compilations/{compId}")
 	CompilationDto updateCompilation(@PathVariable(name = "compId") @Positive Long compId,
 									 @RequestBody @Valid UpdateCompilationRequest request);
 }

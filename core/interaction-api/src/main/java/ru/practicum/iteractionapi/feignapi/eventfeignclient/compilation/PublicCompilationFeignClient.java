@@ -10,16 +10,15 @@ import ru.practicum.iteractionapi.dto.event.CompilationDto;
 
 import java.util.List;
 
-@FeignClient(name = "event-service")
-@RequestMapping("/compilations")
+@FeignClient(name = "event-service", contextId = "PublicCompilationFeignClient")
 public interface PublicCompilationFeignClient {
-	@GetMapping
+	@GetMapping("/compilations")
 	List<CompilationDto> getCompilationsByParam(@RequestParam(value = "pinned", required = false) Boolean pinned,
 												@RequestParam(value = "from", defaultValue = "0") Integer from,
 												@RequestParam(value = "size", defaultValue = "10") Integer size,
 												HttpServletRequest request);
 
-	@GetMapping("/{compId}")
+	@GetMapping("/compilations/{compId}")
 	CompilationDto getCompilationById(@PathVariable(value = "compId") Long compId,
 									  HttpServletRequest request);
 }

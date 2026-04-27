@@ -11,27 +11,26 @@ import ru.practicum.iteractionapi.dto.request.ParticipationRequestDto;
 
 import java.util.List;
 
-@FeignClient(name = "request-service")
-@RequestMapping(path = "/users/{userId}/requests")
+@FeignClient(name = "request-service", contextId = "RequestFeignClient")
 public interface RequestFeignClient {
-	@GetMapping
+	@GetMapping("/users/{userId}/requests")
 	List<ParticipationRequestDto> getInfoOnParticipation(@PathVariable(value = "userId") Long userId);
 
-	@PostMapping
+	@PostMapping("/users/{userId}/requests")
 	@ResponseStatus(HttpStatus.CREATED)
 	ParticipationRequestDto createRequestForParticipation(@PathVariable(value = "userId") Long userId,
 														  @RequestParam(value = "eventId", required = true) Long eventId,
 														  HttpServletRequest request);
 
-	@PatchMapping("/{requestId}/cancel")
+	@PatchMapping("/users/{userId}/requests/{requestId}/cancel")
 	public ParticipationRequestDto canceledRequestForParticipation(@PathVariable(value = "userId") Long userId,
 																   @PathVariable(value = "requestId") Long requestId);
 
-	@GetMapping("/{eventId}/requests")
+	@GetMapping("/users/{userId}/requests/{eventId}/requests")
 	List<ParticipationRequestDto> getInfoRequest(@PathVariable(value = "userId") Long userId,
 												 @PathVariable(value = "eventId") Long eventId);
 
-	@PatchMapping("/{eventId}/requests")
+	@PutMapping("/users/{userId}/requests/{eventId}/requests")
 	EventRequestStatusUpdateResult updateStatusRequest(@PathVariable(value = "userId") Long userId,
 													   @PathVariable(value = "eventId") Long eventId,
 													   @Valid @RequestBody EventRequestStatusUpdateRequest updateRequest);

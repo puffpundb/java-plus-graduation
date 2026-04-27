@@ -20,7 +20,7 @@ import ru.practicum.iteractionapi.dto.event.EventFullDto;
 import ru.practicum.iteractionapi.dto.user.UserDto;
 import ru.practicum.iteractionapi.error.ConflictException;
 import ru.practicum.iteractionapi.error.NotFoundException;
-import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.PublicEventFeignClient;
+import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.InternalEventFeignClient;
 import ru.practicum.iteractionapi.feignapi.userfeignclient.UserFeignClient;
 import ru.practicum.iteractionapi.model.enums.State;
 
@@ -37,18 +37,18 @@ public class CommentService {
 	final CommentRepository commentRepository;
 	final CommentLikeRepository commentLikeRepository;
 
-	final PublicEventFeignClient publicEventFeignClient;
+	final InternalEventFeignClient internalEventFeignClient;
 	final UserFeignClient userFeignClient;
 
 	public List<CommentDto> getCommentByEventId(Long eventId, Integer from, Integer size) {
 		log.info("PublicCommentServiceImpl: Поиск комментов с заданными параметрами");
 		Pageable pageable = PageRequest.of(from / size, size);
-		List<Comment> commentList = commentRepository.findByEvent_IdOrderByCreatedOnDesc(eventId, pageable);
+		List<Comment> commentList = commentRepository.findByEventIdOrderByCreatedOnDesc(eventId, pageable);
 		log.info("PublicCommentServiceImpl: {}", commentList);
 
 		if (commentList.isEmpty()) return Collections.emptyList();
 
-		List<Long> authorsIds = commentList.stream().map(Comment::getAuthor).distinct().toList();
+		List<Long> authorsIds = commentList.stream().map(Comment::getAuthorId).distinct().toList();
 		List<UserDto> users = userFeignClient.findUsers(authorsIds, 0, authorsIds.size());
 
 		Map<Long, String> authorNames = users.stream().collect(Collectors.toMap(UserDto::getId, UserDto::getName));
@@ -63,7 +63,7 @@ public class CommentService {
 
 		return commentList.stream()
 				.map(comment -> {
-					String authorName = authorNames.getOrDefault(comment.getAuthor(), "Unknown");
+					String authorName = authorNames.getOrDefault(comment.getAuthorId(), "Unknown");
 					Integer likes = commentLikesMap.getOrDefault(comment.getId(), 0);
 					return CommentMapper.toCommentDtoWithLikes(comment, likes, authorName);
 				})
@@ -78,7 +78,7 @@ public class CommentService {
 	}
 
 	private void checkEvent(Long eventId, Long userId) {
-		EventFullDto event = publicEventFeignClient.getEventById(eventId, null);
+		EventFullDto event = internalEventFeignClient.getEventById(eventId);
 
 		if (event.getState().equals(State.PENDING)) {
 			throw new NotFoundException("Такого события не найдено.");
@@ -115,7 +115,7 @@ public class CommentService {
 		Comment comment = commentRepository.findById(commentId)
 				.orElseThrow(() -> new NotFoundException("Комментарий не найден."));
 
-		if (comment.getAuthor().equals(userId)) {
+		if (comment.getAuthorId().equals(userId)) {
 			commentRepository.delete(comment);
 		} else {
 			throw new ConflictException("Невозможно удалить чужой комментарий.");
@@ -126,7 +126,7 @@ public class CommentService {
 		checkAndGetUser(userId);
 		Comment comment = commentRepository.findById(commentId)
 				.orElseThrow(() -> new NotFoundException("Комментарий не найден."));
-		if (userId.equals(comment.getAuthor())) {
+		if (userId.equals(comment.getAuthorId())) {
 			throw new ConflictException("Невозможно поставить лайк на свой комментарий.");
 		}
 
@@ -149,7 +149,7 @@ public class CommentService {
 		if (eventId != null && userId != null) {
 			comments = commentRepository.findAllByEventIdAndAuthorIdOrderByCreatedOnDesc(eventId, userId, pageable);
 		} else if (eventId != null) {
-			comments = commentRepository.findByEvent_IdOrderByCreatedOnDesc(eventId, pageable);
+			comments = commentRepository.findByEventIdOrderByCreatedOnDesc(eventId, pageable);
 		} else if (userId != null) {
 			comments = commentRepository.findAllByAuthorIdOrderByCreatedOnDesc(userId, pageable);
 		} else if (text != null && !text.isEmpty()) {

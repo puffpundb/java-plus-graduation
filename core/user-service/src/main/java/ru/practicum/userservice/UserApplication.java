@@ -7,7 +7,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 
 @SpringBootApplication
 @EnableDiscoveryClient
-@EnableFeignClients
+@EnableFeignClients(basePackages = "ru.practicum.iteractionapi.feignapi")
 public class UserApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(UserApplication.class, args);

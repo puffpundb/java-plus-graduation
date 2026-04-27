@@ -14,8 +14,8 @@ public class RequestMapper {
                 .truncatedTo(ChronoUnit.MILLIS);
 
         return ParticipationRequestDto.builder()
-                .requesterId(request.getRequester())
-                .eventId(request.getEvent())
+                .requesterId(request.getRequesterId())
+                .eventId(request.getEventId())
                 .created(created)
                 .status(request.getStatus())
                 .id(request.getId())

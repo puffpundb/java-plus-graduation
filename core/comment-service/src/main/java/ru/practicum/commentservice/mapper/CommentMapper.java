@@ -11,8 +11,8 @@ public class CommentMapper {
     public Comment commentDtoToComment(CommentRequestDto commentRequestDto, Long user, Long event) {
         return Comment.builder()
                 .text(commentRequestDto.getText())
-                .author(user)
-                .event(event)
+                .authorId(user)
+                .eventId(event)
                 .build();
     }
 
@@ -21,7 +21,7 @@ public class CommentMapper {
                 .id(comment.getId())
                 .text(comment.getText())
                 .authorName(userName)
-                .eventId(comment.getEvent())
+                .eventId(comment.getEventId())
                 .create(comment.getCreatedOn())
                 .build();
     }
@@ -30,8 +30,8 @@ public class CommentMapper {
         return CommentAdminDto.builder()
                 .id(comment.getId())
                 .text(comment.getText())
-                .authorId(comment.getAuthor())
-                .eventId(comment.getEvent())
+                .authorId(comment.getAuthorId())
+                .eventId(comment.getEventId())
                 .createdOn(comment.getCreatedOn())
                 .likesCount(comment.getLikesCount())
                 .build();
@@ -42,7 +42,7 @@ public class CommentMapper {
                 .id(comment.getId())
                 .text(comment.getText())
                 .authorName(userName)
-                .eventId(comment.getEvent())
+                .eventId(comment.getEventId())
                 .create(comment.getCreatedOn())
                 .like(likes)
                 .build();

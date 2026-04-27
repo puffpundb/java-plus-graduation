@@ -11,14 +11,13 @@ import ru.practicum.iteractionapi.dto.event.UpdateEventAdminRequest;
 
 import java.util.List;
 
-@FeignClient(name = "event-service")
-@RequestMapping("/admin/events")
+@FeignClient(name = "event-service", contextId = "AdminEventFeignClient")
 public interface AdminEventFeignClient {
-	@GetMapping
+	@GetMapping("/admin/events")
 	@ResponseStatus(HttpStatus.OK)
 	List<EventFullDto> getEvents(@Valid @ModelAttribute AdminEventParam params);
 
-	@PatchMapping("/{eventId}")
+	@PatchMapping("/admin/events/{eventId}")
 	@ResponseStatus(HttpStatus.OK)
 	public EventFullDto updateEvents(@PathVariable(name = "eventId") @Positive Long eventId,
 									 @RequestBody @Valid UpdateEventAdminRequest dto);

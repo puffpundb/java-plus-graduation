@@ -22,11 +22,11 @@ public class Comment {
 
     @Column(name = "event_id")
     @ToString.Exclude
-    private Long event;
+    private Long eventId;
 
     @Column(name = "author_id")
     @ToString.Exclude
-    private Long author;
+    private Long authorId;
 
     @Column(name = "created_on")
     @Builder.Default

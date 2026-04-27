@@ -33,7 +33,7 @@ public class Event {
     private Category category;
 
     @Column(name = "initiator_id")
-    private Long initiator;
+    private Long initiatorId;
 
     @Embedded
     @Builder.Default
