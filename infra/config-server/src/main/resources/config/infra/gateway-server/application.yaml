@@ -24,6 +24,11 @@ spring:
             - Path=/events/**
 
 
+        - id: main-service-private-events-requests
+          uri: lb://event-service
+          predicates:
+              - Path=/users/*/events/*/requests
+
         - id: main-service-private-comment
           uri: lb://comment-service
           predicates:

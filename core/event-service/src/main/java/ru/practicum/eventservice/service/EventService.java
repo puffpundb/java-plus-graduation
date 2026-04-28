@@ -56,6 +56,17 @@ public class EventService {
 
 	static final String URI_EVENT_ENDPOINT = "/events/";
 
+	public List<ParticipationRequestDto> getInfoRequest(Long userId, Long eventId) {
+		eventRepository.findById(eventId)
+				.orElseThrow(() -> new ValidationException("Событие не найдено"));
+		if (userFeignClient.findUsers(List.of(userId), 0, 1).isEmpty()) {
+			throw new NotFoundException("user по id: " + userId + "не найден");
+		}
+
+		log.info("EventService: запрос к requset-service по методу requestFeignClient.getInfoRequest(userId, eventId)");
+		return requestFeignClient.getInfoRequest(userId, eventId);
+	}
+
 	public List<EventShortDto> getEvents(String text,
 										 List<Long> categories,
 										 Boolean paid,

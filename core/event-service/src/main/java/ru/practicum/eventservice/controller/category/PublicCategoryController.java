@@ -2,14 +2,14 @@ package ru.practicum.eventservice.controller.category;
 
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import ru.practicum.eventservice.service.CategoryService;
 import ru.practicum.iteractionapi.dto.category.CategoryDto;
 import ru.practicum.iteractionapi.feignapi.categoryfeignclient.PublicCategoryFeignClient;
@@ -26,14 +26,16 @@ public class PublicCategoryController {
 	final CategoryService categoryService;
 
 	@GetMapping
-	public List<CategoryDto> getCategoryByParam(Integer from, Integer size, HttpServletRequest request) {
+	public List<CategoryDto> getCategoryByParam(@RequestParam(value = "from", defaultValue = "0") @PositiveOrZero Integer from,
+												@RequestParam(value = "size", defaultValue = "10") @Positive Integer size,
+												HttpServletRequest request) {
 		log.info("PublicCategoryController: вызов эндпоинта GET /category с параметрами -- from:{}, size:{}", from, size);
 
 		return categoryService.getCategories(from, size, request);
 	}
 
 	@GetMapping("/{catId}")
-	public CategoryDto getCategory(Long catId, HttpServletRequest request) {
+	public CategoryDto getCategory(@PathVariable(value = "catId") Long catId, HttpServletRequest request) {
 		log.info("PublicCategoryController: вызов эндпоинта GET /category/{}", catId);
 
 		return categoryService.getById(catId, request);

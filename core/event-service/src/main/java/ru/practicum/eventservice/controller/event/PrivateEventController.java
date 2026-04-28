@@ -11,6 +11,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.eventservice.service.EventService;
 import ru.practicum.iteractionapi.dto.event.*;
+import ru.practicum.iteractionapi.dto.request.ParticipationRequestDto;
 import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.PrivateEventFeignClient;
 
 import java.util.List;
@@ -57,5 +58,11 @@ public class PrivateEventController {
 															  @Valid @RequestBody EventRequestStatusUpdateRequest updateRequest) {
 		log.info("RequestController: вызов updateStatusRequest: userId - {}, eventId - {}, updateRequest - {}", userId, eventId, updateRequest);
 		return service.updateStatusRequest(userId, eventId, updateRequest);
+	}
+
+	@GetMapping("/{eventId}/requests")
+	public List<ParticipationRequestDto> getInfoRequest(@PathVariable(value = "userId") Long userId,
+														@PathVariable(value = "eventId") Long eventId) {
+		return service.getInfoRequest(userId, eventId);
 	}
 }

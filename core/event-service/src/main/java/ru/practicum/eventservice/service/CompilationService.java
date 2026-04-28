@@ -151,8 +151,8 @@ public class CompilationService {
 				throw new NotFoundException("Некоторые события не были найдены.");
 			}
 
-			eventShortDtos = setViewsToEventShortDto(compilation);
 			compilation.setEvents(events);
+			eventShortDtos = setViewsToEventShortDto(compilation);
 		}
 
 		Compilation savedCompilation = compilationRepository.save(compilation);

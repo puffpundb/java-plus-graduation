@@ -1,5 +1,7 @@
 package ru.practicum.iteractionapi.error;
 
+import feign.FeignException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @Slf4j
 @RestControllerAdvice
@@ -97,6 +100,18 @@ public class ErrorHandler {
                 .reason("Ошибка валидации")
                 .message(ex.getMessage())
                 .timestamp(LocalDateTime.now().format(FORMATTER))
+                .build();
+    }
+
+    @ExceptionHandler(FeignException.NotFound.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiError handleFeignNotFound(FeignException.NotFound e) {
+        return ApiError.builder()
+                .errors(List.of(e.getMessage()))
+                .message("Event not found")
+                .reason("The requested event does not exist")
+                .status(HttpStatus.NOT_FOUND.name())
+                .timestamp(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
                 .build();
     }
 }
