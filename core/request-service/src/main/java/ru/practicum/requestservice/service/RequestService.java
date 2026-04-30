@@ -12,6 +12,7 @@ import ru.practicum.iteractionapi.dto.event.EventRequestStatusUpdateResult;
 import ru.practicum.iteractionapi.dto.request.ParticipationRequestDto;
 import ru.practicum.iteractionapi.dto.user.UserDto;
 import ru.practicum.iteractionapi.error.ConflictException;
+import ru.practicum.iteractionapi.error.EventNotPublishedException;
 import ru.practicum.iteractionapi.error.NotFoundException;
 import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.InternalEventFeignClient;
 import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.PublicEventFeignClient;
@@ -142,11 +143,11 @@ public class RequestService {
 		EventFullDto event = checkAndGetEvent(eventId);
 		checkUser(userId);
 
+		if (!event.getState().equals(State.PUBLISHED)) {
+			throw new EventNotPublishedException("Событие с id: " + eventId + " не опубликовано");
+		}
 		if (event.getInitiatorDto().getId().equals(userId)) {
 			throw new ConflictException("инициатор события не может добавить запрос на участие в своём событии.");
-		}
-		if (!event.getState().equals(State.PUBLISHED)) {
-			throw new ConflictException("нельзя участвовать в неопубликованном событии.");
 		}
 
 		long confirmedRequest = event.getConfirmedRequests();

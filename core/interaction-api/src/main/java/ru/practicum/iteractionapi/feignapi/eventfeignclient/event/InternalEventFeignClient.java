@@ -20,6 +20,6 @@ public interface InternalEventFeignClient {
 	@GetMapping("/events")
 	List<EventShortDto> getEvents(@SpringQueryMap @Valid EventSearchParams params);
 
-	@GetMapping("/events/{id}")
+	@GetMapping("/internal/events/{id}")
 	EventFullDto getEventById(@PathVariable(value = "id") Long id);
 }

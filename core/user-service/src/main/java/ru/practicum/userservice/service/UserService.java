@@ -26,11 +26,13 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public List<UserDto> getUsers(List<Long> ids, Integer from, Integer size) {
-		int pageNumber = from / size;
-		Pageable pageable = PageRequest.of(pageNumber, size);
+		int safeFrom = (from != null && from >= 0) ? from : 0;
+		int safeSize = (size != null && size > 0) ? size : 10;
+
+		int pageNumber = safeFrom / safeSize;
+		Pageable pageable = PageRequest.of(pageNumber, safeSize);
 
 		Page<User> users;
-
 		if (ids == null || ids.isEmpty()) {
 			users = repository.findAll(pageable);
 		} else {

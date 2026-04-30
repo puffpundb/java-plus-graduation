@@ -31,7 +31,7 @@ public class InternalEventController {
 		eventService.setConfirmedRequests(eventId, confirmedRequests);
 	}
 
-	@GetMapping("/events")
+	@GetMapping
 	public List<EventShortDto> getEvents(@SpringQueryMap @Valid EventSearchParams params) {
 		log.info("InternalEventController: вызов эндпоинта GET events/ " +
 						"с параметрами запроса --  " +
@@ -51,10 +51,10 @@ public class InternalEventController {
 				null);
 	}
 
-	@GetMapping("/events/{id}")
+	@GetMapping("/{id}")
 	public EventFullDto getEventById(@PathVariable(value = "id") Long id) {
 		log.info("InternalEventController: вызов эндпоинта GET events/{}", id);
 
-		return eventService.getById(id, null);
+		return eventService.internalGetById(id);
 	}
 }

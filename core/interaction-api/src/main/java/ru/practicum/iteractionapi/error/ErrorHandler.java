@@ -108,10 +108,29 @@ public class ErrorHandler {
     public ApiError handleFeignNotFound(FeignException.NotFound e) {
         return ApiError.builder()
                 .errors(List.of(e.getMessage()))
-                .message("Event not found")
-                .reason("The requested event does not exist")
-                .status(HttpStatus.NOT_FOUND.name())
+                .message("Событие не найдено")
+                .reason("Запрошенное событие не существует")
                 .timestamp(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+                .build();
+    }
+
+    @ExceptionHandler(EventNotPublishedException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiError handleEventNotPublished(final EventNotPublishedException e) {
+        return ApiError.builder()
+                .errors(List.of(e.getMessage()))
+                .message("Не удается создать заявку на участие в неопубликованном мероприятии")
+                .timestamp(LocalDateTime.now().format(FORMATTER))
+                .build();
+    }
+
+    @ExceptionHandler(FeignException.Conflict.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiError handleFeignConflict(FeignException.Conflict e) {
+        return ApiError.builder()
+                .errors(List.of(e.getMessage()))
+                .message("Конфликт при выполнении операции")
+                .timestamp(LocalDateTime.now().format(FORMATTER))
                 .build();
     }
 }

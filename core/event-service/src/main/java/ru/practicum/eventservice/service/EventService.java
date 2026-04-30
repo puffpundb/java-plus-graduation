@@ -133,8 +133,20 @@ public class EventService {
 		return result;
 	}
 
-	public EventFullDto getById(Long id, HttpServletRequest request) {
+	public EventFullDto internalGetById(Long id) {
 		log.info("PublicEventService: Поиск ивента с переданным id: {}", id);
+		Event event = eventRepository.findById(id)
+				.orElseThrow(() -> new NotFoundException(String.format("Событие с id: %d не найдено", id)));
+
+		Long view = 0L;
+
+		UserDto userDto = userFeignClient.findUsers(List.of(event.getInitiatorId()), 0, 1).getFirst();
+
+		return EventMapper.toEventFullDto(event, userDto, view);
+	}
+
+	public EventFullDto getById(Long id, HttpServletRequest request) {
+		log.info("PublicEventService: Поиск опубликованного ивента с переданным id: {}", id);
 		Event event = eventRepository.findPublishedById(id)
 				.orElseThrow(() -> new NotFoundException(String.format("Событие с id: %d не найдено", id)));
 
