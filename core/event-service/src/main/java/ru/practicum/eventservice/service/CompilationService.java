@@ -1,5 +1,6 @@
 package ru.practicum.eventservice.service;
 
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,7 @@ public class CompilationService {
 
 	final String URI_EVENT_ENDPOINT = "/events/";
 
+	@Retry(name = "eventServiceRetry")
 	public List<CompilationDto> getCompilations(Boolean pinned, Integer from, Integer size, HttpServletRequest request) {
 		log.info("PublicCompilationService: выгрузка подборок по заданным параметрам");
 		List<Compilation> compilationsList = compilationRepository.findCompilations(pinned, from, size);
@@ -119,6 +121,7 @@ public class CompilationService {
 				.collect(Collectors.toSet());
 	}
 
+	@Retry(name = "eventServiceRetry")
 	public CompilationDto getCompilationById(Long compId, HttpServletRequest request) {
 		log.info("PublicCompilationService: поиск подборки с id: {}", compId);
 		Compilation compilation = compilationRepository.findById(compId)
@@ -135,6 +138,7 @@ public class CompilationService {
 		return CompilationMapper.toCompilationDto(compilation, eventShortDtoList);
 	}
 
+	@Retry(name = "eventServiceRetry")
 	public CompilationDto createCompilation(NewCompilationDto dto) {
 		if (compilationRepository.existsByTitle(dto.getTitle())) {
 			throw new ConflictException("Подборка событий с названием " +  dto.getTitle() + " уже существует!");
@@ -167,6 +171,7 @@ public class CompilationService {
 		compilationRepository.deleteById(id);
 	}
 
+	@Retry(name = "eventServiceRetry")
 	public CompilationDto updateCompilation(Long id, UpdateCompilationRequest request) {
 		Compilation compilation = compilationRepository.findById(id)
 				.orElseThrow(() -> new NotFoundException("Подборка событий с id=" + id + " не найдена."));

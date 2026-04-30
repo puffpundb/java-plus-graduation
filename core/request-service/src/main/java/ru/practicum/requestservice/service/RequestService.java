@@ -1,5 +1,6 @@
 package ru.practicum.requestservice.service;
 
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -36,10 +37,10 @@ import java.util.stream.Collectors;
 public class RequestService {
 	final RequestRepository requestRepository;
 
-	final PublicEventFeignClient publicEventFeignClient;
 	final InternalEventFeignClient internalEventFeignClient;
 	final UserFeignClient userFeignClient;
 
+	@Retry(name = "requestServiceRetry")
 	@Transactional
 	public EventRequestStatusUpdateResult updateStatusRequest(Long userId, Long eventId,
 															  EventRequestStatusUpdateRequest updateRequest) {
@@ -129,6 +130,7 @@ public class RequestService {
 		if (user.isEmpty()) throw new NotFoundException("Пользователь не найден");
 	}
 
+	@Retry(name = "requestServiceRetry")
 	public List<ParticipationRequestDto> getInfoRequest(Long userId, Long eventId) {
 		checkAndGetEvent(eventId);
 		checkUser(userId);
@@ -138,6 +140,7 @@ public class RequestService {
 				.toList();
 	}
 
+	@Retry(name = "requestServiceRetry")
 	@Transactional
 	public ParticipationRequestDto createRequestForParticipation(Long userId, Long eventId) {
 		EventFullDto event = checkAndGetEvent(eventId);
@@ -174,6 +177,7 @@ public class RequestService {
 		return RequestMapper.toRequestDto(requestRepository.save(request));
 	}
 
+	@Retry(name = "requestServiceRetry")
 	@Transactional
 	public ParticipationRequestDto canceledRequestForParticipation(Long userId, Long requestId) {
 		checkUser(userId);
@@ -190,7 +194,7 @@ public class RequestService {
 	}
 
 
-
+	@Retry(name = "requestServiceRetry")
 	public List<ParticipationRequestDto> getInfoOnParticipation(Long userId) {
 		checkUser(userId);
 

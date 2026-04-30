@@ -25,3 +25,14 @@ management:
   endpoint:
     health:
       enabled: true
+
+resilience4j.retry:
+  instances:
+    commentServiceRetry:
+      maxRetryAttempts: 5
+      waitDuration: 1000ms
+      retryExceptions:
+        - feign.FeignException.InternalServerError
+        - feign.FeignException.ServiceUnavailable
+        - java.io.IOException
+        - java.net.SocketTimeoutException

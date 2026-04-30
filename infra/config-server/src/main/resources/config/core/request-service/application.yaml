@@ -29,3 +29,14 @@ management:
 feign:
   httpclient:
     enabled: true
+
+resilience4j.retry:
+  instances:
+    requestServiceRetry:
+      maxRetryAttempts: 5
+      waitDuration: 1000ms
+      retryExceptions:
+        - feign.FeignException.InternalServerError
+        - feign.FeignException.ServiceUnavailable
+        - java.io.IOException
+        - java.net.SocketTimeoutException

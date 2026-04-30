@@ -1,5 +1,6 @@
 package ru.practicum.eventservice.service;
 
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class CategoryService {
 	final CategoryRepository categoryRepository;
 	final StatClient statClient;
 
+	@Retry(name = "eventServiceRetry")
 	public List<CategoryDto> getCategories(Integer from, Integer size, HttpServletRequest request) {
 		log.info("PublicCategoryService: выгрузка категорий по заданным параметрам:");
 		Pageable pageable = PageRequest.of(from / size, size);
@@ -46,6 +48,7 @@ public class CategoryService {
 		return categoryList.stream().map(CategoryMapper::toCategoryDto).toList();
 	}
 
+	@Retry(name = "eventServiceRetry")
 	public CategoryDto getById(Long catId, HttpServletRequest request) {
 		log.info("PublicCategoryService: поиск категории с переданным id:");
 		Category category = categoryRepository.findById(catId)

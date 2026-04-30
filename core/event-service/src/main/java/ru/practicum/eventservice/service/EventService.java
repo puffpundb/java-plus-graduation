@@ -1,5 +1,6 @@
 package ru.practicum.eventservice.service;
 
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -56,6 +57,7 @@ public class EventService {
 
 	static final String URI_EVENT_ENDPOINT = "/events/";
 
+	@Retry(name = "eventServiceRetry")
 	public List<ParticipationRequestDto> getInfoRequest(Long userId, Long eventId) {
 		eventRepository.findById(eventId)
 				.orElseThrow(() -> new ValidationException("Событие не найдено"));
@@ -67,6 +69,7 @@ public class EventService {
 		return requestFeignClient.getInfoRequest(userId, eventId);
 	}
 
+	@Retry(name = "eventServiceRetry")
 	public List<EventShortDto> getEvents(String text,
 										 List<Long> categories,
 										 Boolean paid,
@@ -133,6 +136,7 @@ public class EventService {
 		return result;
 	}
 
+	@Retry(name = "eventServiceRetry")
 	public EventFullDto internalGetById(Long id) {
 		log.info("PublicEventService: Поиск ивента с переданным id: {}", id);
 		Event event = eventRepository.findById(id)
@@ -145,6 +149,7 @@ public class EventService {
 		return EventMapper.toEventFullDto(event, userDto, view);
 	}
 
+	@Retry(name = "eventServiceRetry")
 	public EventFullDto getById(Long id, HttpServletRequest request) {
 		log.info("PublicEventService: Поиск опубликованного ивента с переданным id: {}", id);
 		Event event = eventRepository.findPublishedById(id)
@@ -181,6 +186,7 @@ public class EventService {
 		return statsService.getViewsByUris(uris, false);
 	}
 
+	@Retry(name = "eventServiceRetry")
 	public List<EventShortDto> getEventsByOwner(Long userId, Long from, Long size) {
 		int page = from.intValue() / size.intValue();
 		Pageable pageable = PageRequest.of(page, size.intValue());
@@ -204,6 +210,7 @@ public class EventService {
 		return dtos;
 	}
 
+	@Retry(name = "eventServiceRetry")
 	@Transactional
 	public EventFullDto createEvent(Long userId, NewEventDto newEventDto) {
 		if (newEventDto.getEventDate().isBefore(LocalDateTime.now().plusHours(2))) {
@@ -221,6 +228,7 @@ public class EventService {
 		return EventMapper.eventToEventFullDto(event, userList.getFirst());
 	}
 
+	@Retry(name = "eventServiceRetry")
 	public EventFullDto getInfoEvent(Long userId, Long eventId) {
 		Event event = eventRepository.findById(eventId)
 				.orElseThrow(() -> new NotFoundException("Такого события не найдено."));
@@ -239,6 +247,7 @@ public class EventService {
 		return eventFullDto;
 	}
 
+	@Retry(name = "eventServiceRetry")
 	@Transactional
 	public EventFullDto updateEvent(Long userId, Long eventId, UpdateEventUserRequest updateEventUserRequest) {
 		Event event = eventRepository.findById(eventId)
@@ -260,6 +269,7 @@ public class EventService {
 		return EventMapper.eventToEventFullDto(updateEvent, userList.getFirst());
 	}
 
+	@Retry(name = "eventServiceRetry")
 	public List<EventFullDto> getFullEvents(AdminEventParam params) {
 		List<State> states = convertStatesEnum(params.getStates());
 
@@ -317,6 +327,7 @@ public class EventService {
 				.toList();
 	}
 
+	@Retry(name = "eventServiceRetry")
 	@Transactional
 	public EventFullDto updateEventByAdmin(Long eventId, UpdateEventAdminRequest request) {
 		Event event = eventRepository.findById(eventId)
@@ -408,6 +419,7 @@ public class EventService {
 		}
 	}
 
+	@Retry(name = "eventServiceRetry")
 	@Transactional
 	public EventRequestStatusUpdateResult updateStatusRequest(Long userId, Long eventId,
 															  EventRequestStatusUpdateRequest updateRequest) {

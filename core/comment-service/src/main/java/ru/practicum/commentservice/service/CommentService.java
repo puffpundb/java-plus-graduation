@@ -1,5 +1,6 @@
 package ru.practicum.commentservice.service;
 
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -40,6 +41,7 @@ public class CommentService {
 	final InternalEventFeignClient internalEventFeignClient;
 	final UserFeignClient userFeignClient;
 
+	@Retry(name = "commentServiceRetry")
 	public List<CommentDto> getCommentByEventId(Long eventId, Integer from, Integer size) {
 		log.info("PublicCommentServiceImpl: Поиск комментов с заданными параметрами");
 		Pageable pageable = PageRequest.of(from / size, size);
@@ -77,7 +79,7 @@ public class CommentService {
 		return userDtoList.getFirst();
 	}
 
-	private void checkEvent(Long eventId, Long userId) {
+	private EventFullDto checkAndGetEvent(Long eventId, Long userId) {
 		EventFullDto event = internalEventFeignClient.getEventById(eventId);
 
 		if (event.getState().equals(State.PENDING)) {
@@ -86,11 +88,14 @@ public class CommentService {
 		if (event.getInitiatorDto().getId().equals(userId)) {
 			throw new ConflictException("Нельзя комментировать свое событие.");
 		}
+
+		return event;
 	}
 
+	@Retry(name = "commentServiceRetry")
 	public CommentDto createComment(Long userId, Long eventId, CommentRequestDto commentRequestDto) {
 		UserDto userDto = checkAndGetUser(userId);
-		checkEvent(eventId, userId);
+		checkAndGetEvent(eventId, userId);
 
 
 		return CommentMapper
@@ -98,9 +103,10 @@ public class CommentService {
 						userDto.getName());
 	}
 
+	@Retry(name = "commentServiceRetry")
 	public CommentDto updateComment(Long userId, Long eventId, Long commentId, CommentRequestDto commentRequestDto) {
 		UserDto userDto = checkAndGetUser(userId);
-		checkEvent(eventId, userId);
+		checkAndGetEvent(eventId, userId);
 		Comment comment = commentRepository.findById(commentId)
 				.orElseThrow(() -> new NotFoundException("Комментарий не найден."));
 
@@ -109,9 +115,10 @@ public class CommentService {
 		return CommentMapper.commentToCommentDto(commentRepository.save(comment), userDto.getName());
 	}
 
+	@Retry(name = "commentServiceRetry")
 	public void deleteComment(Long userId, Long eventId, Long commentId) {
 		checkAndGetUser(userId);
-		checkEvent(eventId, null);
+		checkAndGetEvent(eventId, null);
 		Comment comment = commentRepository.findById(commentId)
 				.orElseThrow(() -> new NotFoundException("Комментарий не найден."));
 
@@ -122,6 +129,7 @@ public class CommentService {
 		}
 	}
 
+	@Retry(name = "commentServiceRetry")
 	public void addAndDeleteLikeComment(Long userId, Long eventId, Long commentId) {
 		checkAndGetUser(userId);
 		Comment comment = commentRepository.findById(commentId)
