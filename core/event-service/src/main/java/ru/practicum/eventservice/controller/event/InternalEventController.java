@@ -23,14 +23,6 @@ import java.util.List;
 public class InternalEventController {
 	final EventService eventService;
 
-	@PutMapping("/{eventId}/confirmed-requests")
-	@ResponseStatus(HttpStatus.OK)
-	public void setConfirmedRequests(@PathVariable Long eventId,
-									 @RequestParam Long confirmedRequests) {
-		log.info("Internal: Фиксация нового значения подтвержденных запросов event - {}, confirmedRequests - {}", eventId, confirmedRequests);
-		eventService.setConfirmedRequests(eventId, confirmedRequests);
-	}
-
 	@GetMapping
 	public List<EventShortDto> getEvents(@SpringQueryMap @Valid EventSearchParams params) {
 		log.info("InternalEventController: вызов эндпоинта GET events/ " +

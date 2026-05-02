@@ -18,8 +18,7 @@ CREATE TABLE IF NOT EXISTS events (
     published_on TIMESTAMP WITHOUT TIME ZONE,
     paid BOOLEAN DEFAULT FALSE,
     participant_limit INTEGER DEFAULT 0 CHECK (participant_limit >= 0),
-    request_moderation BOOLEAN DEFAULT TRUE,
-    confirmed_requests INTEGER DEFAULT 0 CHECK (confirmed_requests >= 0)
+    request_moderation BOOLEAN DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS compilations (

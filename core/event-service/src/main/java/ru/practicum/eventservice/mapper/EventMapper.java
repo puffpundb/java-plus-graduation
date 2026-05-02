@@ -20,30 +20,38 @@ public class EventMapper {
                 .build();
     }
 
-    public static EventShortDto toEventShortDto(Event event, UserDto initiator) {
+    public EventShortDto toEventShortDto(Event event, UserDto initiator, Long confirmedRequests, Long views) {
         return EventShortDto.builder()
                 .annotation(event.getAnnotation())
                 .categoryDto(CategoryMapper.toCategoryDto(event.getCategory()))
-                .confirmedRequests(event.getConfirmedRequests())
+                .confirmedRequests(confirmedRequests != null ? confirmedRequests : 0L)
                 .eventDate(event.getEventDate())
                 .id(event.getId())
                 .initiatorDto(toUserShortDto(initiator))
                 .paid(event.getPaid())
                 .title(event.getTitle())
+                .views(views != null ? views : 0L)
                 .build();
     }
 
-    public static EventShortDto toEventShortDto(Event event, UserDto initiator, Long views) {
-        return EventShortDto.builder()
+    public EventFullDto toEventFullDto(Event event, UserDto initiator, Long confirmedRequests, Long views) {
+        return EventFullDto.builder()
                 .annotation(event.getAnnotation())
                 .categoryDto(CategoryMapper.toCategoryDto(event.getCategory()))
-                .confirmedRequests(event.getConfirmedRequests())
                 .eventDate(event.getEventDate())
-                .id(event.getId())
+                .confirmedRequests(confirmedRequests != null ? confirmedRequests : 0L)
+                .createdOn(event.getCreatedOn())
+                .description(event.getDescription())
+                .locationDto(LocationMapper.locationToLocationDto(event.getLocation()))
                 .initiatorDto(toUserShortDto(initiator))
+                .state(event.getState())
+                .id(event.getId())
                 .paid(event.getPaid())
+                .participantLimit(event.getParticipantLimit())
+                .publishedOn(event.getPublishedOn())
+                .requestModeration(event.getRequestModeration())
                 .title(event.getTitle())
-                .views(views)
+                .views(views != null ? views : 0L)
                 .build();
     }
 
@@ -59,26 +67,6 @@ public class EventMapper {
                 .participantLimit(newEventDto.getParticipantLimit())
                 .requestModeration(newEventDto.getRequestModeration())
                 .title(newEventDto.getTitle())
-                .build();
-    }
-
-    public static EventFullDto eventToEventFullDto(Event event, UserDto initiator) {
-        return EventFullDto.builder()
-                .annotation(event.getAnnotation())
-                .categoryDto(CategoryMapper.toCategoryDto(event.getCategory()))
-                .eventDate(event.getEventDate())
-                .confirmedRequests(event.getConfirmedRequests())
-                .createdOn(event.getCreatedOn())
-                .description(event.getDescription())
-                .locationDto(LocationMapper.locationToLocationDto(event.getLocation()))
-                .initiatorDto(toUserShortDto(initiator))
-                .state(event.getState())
-                .id(event.getId())
-                .paid(event.getPaid())
-                .participantLimit(event.getParticipantLimit())
-                .publishedOn(event.getPublishedOn())
-                .requestModeration(event.getRequestModeration())
-                .title(event.getTitle())
                 .build();
     }
 
@@ -107,27 +95,6 @@ public class EventMapper {
         }
 
         return event;
-    }
-
-    public static EventFullDto toEventFullDto(Event event, UserDto initiator, Long views) {
-        return EventFullDto.builder()
-                .annotation(event.getAnnotation())
-                .categoryDto(CategoryMapper.toCategoryDto(event.getCategory()))
-                .eventDate(event.getEventDate())
-                .confirmedRequests(event.getConfirmedRequests())
-                .createdOn(event.getCreatedOn())
-                .description(event.getDescription())
-                .locationDto(LocationMapper.locationToLocationDto(event.getLocation()))
-                .initiatorDto(toUserShortDto(initiator))
-                .state(event.getState())
-                .id(event.getId())
-                .paid(event.getPaid())
-                .participantLimit(event.getParticipantLimit())
-                .publishedOn(event.getPublishedOn())
-                .requestModeration(event.getRequestModeration())
-                .title(event.getTitle())
-                .views(views)
-                .build();
     }
 
     public static Long extractIdFromUri(String uri) {

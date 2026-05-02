@@ -51,18 +51,4 @@ public class PrivateEventController {
 									@Valid @RequestBody UpdateEventUserRequest updateEventUserRequest) {
 		return service.updateEvent(userId, eventId, updateEventUserRequest);
 	}
-
-	@PatchMapping("/{eventId}/requests")
-	public EventRequestStatusUpdateResult updateStatusRequest(@PathVariable(value = "userId") Long userId,
-															  @PathVariable(value = "eventId") Long eventId,
-															  @Valid @RequestBody EventRequestStatusUpdateRequest updateRequest) {
-		log.info("RequestController: вызов updateStatusRequest: userId - {}, eventId - {}, updateRequest - {}", userId, eventId, updateRequest);
-		return service.updateStatusRequest(userId, eventId, updateRequest);
-	}
-
-	@GetMapping("/{eventId}/requests")
-	public List<ParticipationRequestDto> getInfoRequest(@PathVariable(value = "userId") Long userId,
-														@PathVariable(value = "eventId") Long eventId) {
-		return service.getInfoRequest(userId, eventId);
-	}
 }

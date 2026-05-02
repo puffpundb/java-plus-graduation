@@ -13,10 +13,6 @@ import java.util.List;
 
 @FeignClient(name = "event-service", contextId = "InternalEventFeignClient")
 public interface InternalEventFeignClient {
-	@PutMapping("/internal/events/{eventId}/confirmed-requests")
-	void setConfirmedRequests(@PathVariable Long eventId,
-							  @RequestParam Long confirmedRequests);
-
 	@GetMapping("/events")
 	List<EventShortDto> getEvents(@SpringQueryMap @Valid EventSearchParams params);
 

@@ -64,10 +64,6 @@ public class Event {
     @Builder.Default
     private Boolean requestModeration = true;
 
-    @Column(name = "confirmed_requests")
-    @Builder.Default
-    private Long confirmedRequests = 0L;
-
     @ManyToMany(mappedBy = "events")
     @ToString.Exclude
     @Builder.Default

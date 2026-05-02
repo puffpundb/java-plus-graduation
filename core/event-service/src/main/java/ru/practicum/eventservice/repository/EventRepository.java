@@ -3,7 +3,6 @@ package ru.practicum.eventservice.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import ru.practicum.eventservice.entity.Event;
@@ -15,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
+
     List<Event> findAllByIdIn(Set<Long> ids);
 
     Page<Event> findByInitiatorId(Long userId, Pageable pageable);
@@ -26,13 +26,12 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             "AND (e.eventDate >= :rangeStart) " +
             "AND (e.eventDate <= :rangeEnd) " +
             "ORDER BY e.createdOn DESC")
-    List<Event> findEventByAdmin(
-            @Param("users") List<Long> users,
-            @Param("states") List<State> states,
-            @Param("categories") List<Long> categories,
-            @Param("rangeStart") LocalDateTime rangeStart,
-            @Param("rangeEnd") LocalDateTime rangeEnd,
-            Pageable pageable);
+    List<Event> findEventByAdmin(@Param("users") List<Long> users,
+                                 @Param("states") List<State> states,
+                                 @Param("categories") List<Long> categories,
+                                 @Param("rangeStart") LocalDateTime rangeStart,
+                                 @Param("rangeEnd") LocalDateTime rangeEnd,
+                                 Pageable pageable);
 
     @Query("""
         SELECT e
@@ -47,9 +46,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
           AND (:categories IS NULL OR e.category.id IN :categories)
           AND e.eventDate >= :rangeStart
           AND e.eventDate <= :rangeEnd
-          AND (:onlyAvailable = FALSE
-               OR e.participantLimit = 0
-               OR e.confirmedRequests < e.participantLimit)
         ORDER BY e.eventDate ASC
         """)
     List<Event> findPublicEvents(@Param("text") String text,
@@ -57,13 +53,8 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                                  @Param("paid") Boolean paid,
                                  @Param("rangeStart") LocalDateTime rangeStart,
                                  @Param("rangeEnd") LocalDateTime rangeEnd,
-                                 @Param("onlyAvailable") Boolean onlyAvailable,
                                  Pageable pageable);
 
     @Query("SELECT e FROM Event e WHERE e.id = :id AND e.state = 'PUBLISHED'")
     Optional<Event> findPublishedById(@Param("id") Long id);
-
-    @Modifying
-    @Query("UPDATE Event e SET e.confirmedRequests = :confirmed WHERE e.id = :eventId")
-    int updateConfirmedRequests(@Param("eventId") Long eventId, @Param("confirmed") Long confirmedRequests);
 }

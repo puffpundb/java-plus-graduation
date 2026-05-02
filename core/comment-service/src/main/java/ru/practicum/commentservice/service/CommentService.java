@@ -41,31 +41,53 @@ public class CommentService {
 	final InternalEventFeignClient internalEventFeignClient;
 	final UserFeignClient userFeignClient;
 
-	@Retry(name = "commentServiceRetry")
+	@Retry(name = "commentServiceRetry", fallbackMethod = "fallbackFindUsers")
+	protected List<UserDto> findUsers(List<Long> ids, int from, int size) {
+		return userFeignClient.findUsers(ids, from, size);
+	}
+
+	private List<UserDto> fallbackFindUsers(List<Long> ids, int from, int size, Throwable t) {
+		log.warn("User-service unavailable, returning empty user list. Cause: {}", t.getMessage());
+		return Collections.emptyList();
+	}
+
+	@Retry(name = "commentServiceRetry", fallbackMethod = "fallbackGetEventById")
+	protected EventFullDto getEventById(Long eventId) {
+		return internalEventFeignClient.getEventById(eventId);
+	}
+
+	private EventFullDto fallbackGetEventById(Long eventId, Throwable t) {
+		log.error("Event-service unavailable, cannot fetch event {}", eventId, t);
+		throw new RuntimeException("Event-service is temporarily unavailable. Please try later.");
+	}
+
 	public List<CommentDto> getCommentByEventId(Long eventId, Integer from, Integer size) {
 		log.info("PublicCommentServiceImpl: Поиск комментов с заданными параметрами");
 		Pageable pageable = PageRequest.of(from / size, size);
 		List<Comment> commentList = commentRepository.findByEventIdOrderByCreatedOnDesc(eventId, pageable);
-		log.info("PublicCommentServiceImpl: {}", commentList);
+		log.info("PublicCommentServiceImpl: найдено комментариев: {}", commentList.size());
 
 		if (commentList.isEmpty()) return Collections.emptyList();
 
 		List<Long> authorsIds = commentList.stream().map(Comment::getAuthorId).distinct().toList();
-		List<UserDto> users = userFeignClient.findUsers(authorsIds, 0, authorsIds.size());
+		List<UserDto> users = findUsers(authorsIds, 0, authorsIds.size());
 
-		Map<Long, String> authorNames = users.stream().collect(Collectors.toMap(UserDto::getId, UserDto::getName));
+		if (users == null || users.isEmpty()) {
+			log.warn("No users returned from user-service, returning empty comment list");
+			return Collections.emptyList();
+		}
 
-		log.info("PublicCommentServiceImpl: Поиск лайков комментов");
+		Map<Long, String> authorNames = users.stream()
+				.collect(Collectors.toMap(UserDto::getId, UserDto::getName));
+
 		List<Long> commentsIds = commentList.stream().map(Comment::getId).toList();
 		List<CommentLike> commentLikeList = commentLikeRepository.findByCommentIdIn(commentsIds);
-
 		Map<Long, Integer> commentLikesMap = commentLikeList.stream()
 				.collect(Collectors.groupingBy(CommentLike::getCommentId, Collectors.summingInt(like -> 1)));
-		log.info("PublicCommentServiceImpl: {}", commentLikesMap);
 
 		return commentList.stream()
 				.map(comment -> {
-					String authorName = authorNames.getOrDefault(comment.getAuthorId(), "Unknown");
+					String authorName = authorNames.get(comment.getAuthorId());
 					Integer likes = commentLikesMap.getOrDefault(comment.getId(), 0);
 					return CommentMapper.toCommentDtoWithLikes(comment, likes, authorName);
 				})
@@ -73,55 +95,49 @@ public class CommentService {
 	}
 
 	private UserDto checkAndGetUser(Long userId) {
-		List<UserDto> userDtoList = userFeignClient.findUsers(List.of(userId), 0, 1);
-		if (userDtoList.isEmpty()) throw new NotFoundException("Такого пользователя не существует.");
-
+		List<UserDto> userDtoList = findUsers(List.of(userId), 0, 1);
+		if (userDtoList == null || userDtoList.isEmpty()) {
+			throw new NotFoundException("User not found or user-service unavailable: " + userId);
+		}
 		return userDtoList.getFirst();
 	}
 
 	private EventFullDto checkAndGetEvent(Long eventId, Long userId) {
-		EventFullDto event = internalEventFeignClient.getEventById(eventId);
-
-		if (event.getState().equals(State.PENDING)) {
-			throw new NotFoundException("Такого события не найдено.");
+		EventFullDto event = getEventById(eventId);
+		if (event == null) {
+			throw new RuntimeException("Event-service unavailable");
 		}
-		if (event.getInitiatorDto().getId().equals(userId)) {
+		if (event.getState().equals(State.PENDING)) {
+			throw new NotFoundException("Событие не найдено или ещё не опубликовано");
+		}
+		if (userId != null && event.getInitiatorDto().getId().equals(userId)) {
 			throw new ConflictException("Нельзя комментировать свое событие.");
 		}
-
 		return event;
 	}
 
-	@Retry(name = "commentServiceRetry")
 	public CommentDto createComment(Long userId, Long eventId, CommentRequestDto commentRequestDto) {
 		UserDto userDto = checkAndGetUser(userId);
 		checkAndGetEvent(eventId, userId);
-
-
-		return CommentMapper
-				.commentToCommentDto(commentRepository.save(CommentMapper.commentDtoToComment(commentRequestDto, userId, eventId)),
-						userDto.getName());
+		return CommentMapper.commentToCommentDto(
+				commentRepository.save(CommentMapper.commentDtoToComment(commentRequestDto, userId, eventId)),
+				userDto.getName());
 	}
 
-	@Retry(name = "commentServiceRetry")
 	public CommentDto updateComment(Long userId, Long eventId, Long commentId, CommentRequestDto commentRequestDto) {
 		UserDto userDto = checkAndGetUser(userId);
 		checkAndGetEvent(eventId, userId);
 		Comment comment = commentRepository.findById(commentId)
 				.orElseThrow(() -> new NotFoundException("Комментарий не найден."));
-
 		comment.setText(commentRequestDto.getText());
-
 		return CommentMapper.commentToCommentDto(commentRepository.save(comment), userDto.getName());
 	}
 
-	@Retry(name = "commentServiceRetry")
 	public void deleteComment(Long userId, Long eventId, Long commentId) {
 		checkAndGetUser(userId);
 		checkAndGetEvent(eventId, null);
 		Comment comment = commentRepository.findById(commentId)
 				.orElseThrow(() -> new NotFoundException("Комментарий не найден."));
-
 		if (comment.getAuthorId().equals(userId)) {
 			commentRepository.delete(comment);
 		} else {
@@ -129,7 +145,6 @@ public class CommentService {
 		}
 	}
 
-	@Retry(name = "commentServiceRetry")
 	public void addAndDeleteLikeComment(Long userId, Long eventId, Long commentId) {
 		checkAndGetUser(userId);
 		Comment comment = commentRepository.findById(commentId)
@@ -137,7 +152,6 @@ public class CommentService {
 		if (userId.equals(comment.getAuthorId())) {
 			throw new ConflictException("Невозможно поставить лайк на свой комментарий.");
 		}
-
 		CommentLike like = CommentLike.builder()
 				.userId(userId)
 				.commentId(commentId)
@@ -151,9 +165,7 @@ public class CommentService {
 	}
 
 	public List<CommentAdminDto> getAllComments(Long eventId, Long userId, String text, Pageable pageable) {
-
 		List<Comment> comments;
-
 		if (eventId != null && userId != null) {
 			comments = commentRepository.findAllByEventIdAndAuthorIdOrderByCreatedOnDesc(eventId, userId, pageable);
 		} else if (eventId != null) {
@@ -165,16 +177,11 @@ public class CommentService {
 		} else {
 			comments = commentRepository.findAll(pageable).getContent();
 		}
-
-		log.info("Найден список комментариев. Всего: {}", comments.size());
-		return comments.stream()
-				.map(CommentMapper::commentToCommentAdminDto)
-				.toList();
+		return comments.stream().map(CommentMapper::commentToCommentAdminDto).toList();
 	}
 
 	public CommentAdminDto getCommentById(Long commentId) {
-		Comment comment =  findCommentOrThrow(commentId);
-		log.info("Найден комментарий: {}",  comment);
+		Comment comment = findCommentOrThrow(commentId);
 		return CommentMapper.commentToCommentAdminDto(comment);
 	}
 
@@ -182,14 +189,10 @@ public class CommentService {
 	public void deleteComment(Long commentId) {
 		Comment comment = findCommentOrThrow(commentId);
 		commentRepository.delete(comment);
-		log.info("Комментарий с id={} успешно удален",  commentId);
 	}
 
 	private Comment findCommentOrThrow(Long commentId) {
 		return commentRepository.findById(commentId)
-				.orElseThrow(() -> {
-					log.error("Комментарий с id: {} не найден", commentId);
-					return new NotFoundException("Комментарий с id: " + commentId + " не найден");
-				});
+				.orElseThrow(() -> new NotFoundException("Комментарий с id: " + commentId + " не найден"));
 	}
 }

@@ -10,13 +10,13 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.iteractionapi.dto.event.EventFullDto;
 import ru.practicum.iteractionapi.dto.event.EventRequestStatusUpdateRequest;
 import ru.practicum.iteractionapi.dto.event.EventRequestStatusUpdateResult;
+import ru.practicum.requestservice.entity.EventConfirmedCount;
 import ru.practicum.iteractionapi.dto.request.ParticipationRequestDto;
 import ru.practicum.iteractionapi.dto.user.UserDto;
 import ru.practicum.iteractionapi.error.ConflictException;
 import ru.practicum.iteractionapi.error.EventNotPublishedException;
 import ru.practicum.iteractionapi.error.NotFoundException;
 import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.InternalEventFeignClient;
-import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.PublicEventFeignClient;
 import ru.practicum.iteractionapi.feignapi.userfeignclient.UserFeignClient;
 import ru.practicum.iteractionapi.model.enums.State;
 import ru.practicum.iteractionapi.model.enums.Status;
@@ -24,10 +24,7 @@ import ru.practicum.requestservice.entity.Request;
 import ru.practicum.requestservice.mapper.RequestMapper;
 import ru.practicum.requestservice.repository.RequestRepository;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,11 +37,30 @@ public class RequestService {
 	final InternalEventFeignClient internalEventFeignClient;
 	final UserFeignClient userFeignClient;
 
-	@Retry(name = "requestServiceRetry")
+	@Retry(name = "requestServiceRetry", fallbackMethod = "fallbackGetEventById")
+	protected EventFullDto getEventById(Long eventId) {
+		return internalEventFeignClient.getEventById(eventId);
+	}
+
+	private EventFullDto fallbackGetEventById(Long eventId, Throwable t) {
+		log.error("Event-service недоступен, невозможно получить событие {}", eventId, t);
+		throw new RuntimeException("Сервис событий временно недоступен. Попробуйте позже.");
+	}
+
+	@Retry(name = "requestServiceRetry", fallbackMethod = "fallbackFindUsers")
+	protected List<UserDto> findUsers(List<Long> ids, int from, int size) {
+		return userFeignClient.findUsers(ids, from, size);
+	}
+
+	private List<UserDto> fallbackFindUsers(List<Long> ids, int from, int size, Throwable t) {
+		log.warn("User-service недоступен, возвращаем пустой список пользователей. Причина: {}", t.getMessage());
+		return Collections.emptyList();
+	}
+
 	@Transactional
 	public EventRequestStatusUpdateResult updateStatusRequest(Long userId, Long eventId,
 															  EventRequestStatusUpdateRequest updateRequest) {
-		EventFullDto event = internalEventFeignClient.getEventById(eventId);
+		EventFullDto event = getEventById(eventId);
 
 		if (!event.getInitiatorDto().getId().equals(userId)) {
 			throw new ConflictException("Только владелец может обновить статус запроса");
@@ -75,14 +91,14 @@ public class RequestService {
 		List<ParticipationRequestDto> rejectedRequests = new ArrayList<>();
 
 		if (newStatus == Status.CONFIRMED) {
-			long confirmed = event.getConfirmedRequests();
+			long alreadyConfirmed = requestRepository.countByEventIdAndStatus(eventId, Status.CONFIRMED);
 			long limit = event.getParticipantLimit();
 
-			if (limit > 0 && confirmed >= limit) {
+			if (limit > 0 && alreadyConfirmed >= limit) {
 				throw new ConflictException("Достигнут лимит участников события");
 			}
 
-			long availableSlots = (limit == 0) ? requests.size() : limit - confirmed;
+			long availableSlots = (limit == 0) ? requests.size() : limit - alreadyConfirmed;
 			int confirmedCount = 0;
 
 			for (Long id : requestIds) {
@@ -100,11 +116,6 @@ public class RequestService {
 
 			requestRepository.saveAll(requests);
 
-			if (confirmedCount > 0) {
-				long newConfirmed = confirmed + confirmedCount;
-				log.info("Updating confirmedRequests for event {}: new value = {}", eventId, newConfirmed);
-				internalEventFeignClient.setConfirmedRequests(eventId, newConfirmed);
-			}
 		} else if (newStatus == Status.REJECTED) {
 			for (Request req : requests) {
 				req.setStatus(Status.REJECTED);
@@ -122,25 +133,24 @@ public class RequestService {
 	}
 
 	private EventFullDto checkAndGetEvent(Long eventId) {
-		return internalEventFeignClient.getEventById(eventId);
+		return getEventById(eventId);
 	}
 
 	private void checkUser(Long userId) {
-		List<UserDto> user = userFeignClient.findUsers(List.of(userId), 0, 1);
-		if (user.isEmpty()) throw new NotFoundException("Пользователь не найден");
+		List<UserDto> user = findUsers(List.of(userId), 0, 1);
+		if (user == null || user.isEmpty()) {
+			throw new NotFoundException("Пользователь не найден или сервис пользователей недоступен");
+		}
 	}
 
-	@Retry(name = "requestServiceRetry")
 	public List<ParticipationRequestDto> getInfoRequest(Long userId, Long eventId) {
 		checkAndGetEvent(eventId);
 		checkUser(userId);
-
 		return requestRepository.findAllByEventId(eventId).stream()
 				.map(RequestMapper::toRequestDto)
 				.toList();
 	}
 
-	@Retry(name = "requestServiceRetry")
 	@Transactional
 	public ParticipationRequestDto createRequestForParticipation(Long userId, Long eventId) {
 		EventFullDto event = checkAndGetEvent(eventId);
@@ -150,12 +160,13 @@ public class RequestService {
 			throw new EventNotPublishedException("Событие с id: " + eventId + " не опубликовано");
 		}
 		if (event.getInitiatorDto().getId().equals(userId)) {
-			throw new ConflictException("инициатор события не может добавить запрос на участие в своём событии.");
+			throw new ConflictException("Инициатор события не может добавить запрос на участие в своём событии.");
 		}
 
-		long confirmedRequest = event.getConfirmedRequests();
+		long confirmedRequest = requestRepository.countByEventIdAndStatus(eventId, Status.CONFIRMED);
+
 		if (event.getParticipantLimit() != 0 && event.getParticipantLimit() <= confirmedRequest) {
-			throw new ConflictException("у события достигнут лимит запросов на участие");
+			throw new ConflictException("У события достигнут лимит запросов на участие");
 		}
 
 		Optional<Request> existingRequest = requestRepository.findByEventIdAndRequesterId(eventId, userId);
@@ -170,14 +181,11 @@ public class RequestService {
 
 		if (!event.getRequestModeration() || event.getParticipantLimit() == 0) {
 			request.setStatus(Status.CONFIRMED);
-
-			internalEventFeignClient.setConfirmedRequests(eventId, event.getConfirmedRequests() + 1);
 		}
 
 		return RequestMapper.toRequestDto(requestRepository.save(request));
 	}
 
-	@Retry(name = "requestServiceRetry")
 	@Transactional
 	public ParticipationRequestDto canceledRequestForParticipation(Long userId, Long requestId) {
 		checkUser(userId);
@@ -193,13 +201,20 @@ public class RequestService {
 		return RequestMapper.toRequestDto(request.get());
 	}
 
-
-	@Retry(name = "requestServiceRetry")
 	public List<ParticipationRequestDto> getInfoOnParticipation(Long userId) {
 		checkUser(userId);
-
 		return requestRepository.findAllByRequesterId(userId).stream()
 				.map(RequestMapper::toRequestDto)
 				.toList();
+	}
+
+	public Long getConfirmedRequestsCount(Long eventId) {
+		return requestRepository.countByEventIdAndStatus(eventId, Status.CONFIRMED);
+	}
+
+	public Map<Long, Long> getConfirmedRequestsCounts(List<Long> eventIds) {
+		return requestRepository.countByEventIdInAndStatus(eventIds, Status.CONFIRMED)
+				.stream()
+				.collect(Collectors.toMap(EventConfirmedCount::getEventId, EventConfirmedCount::getCount));
 	}
 }

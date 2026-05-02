@@ -15,9 +15,9 @@ import java.util.List;
 
 @FeignClient(name = "event-service", contextId = "PublicEventFeignClient")
 public interface PublicEventFeignClient {
-//	@GetMapping("/events")
-//	public List<EventShortDto> getEvents(@SpringQueryMap @Valid EventSearchParams params, HttpServletRequest request);
-//
-//	@GetMapping("/events/{id}")
-//	public EventFullDto getEventById(@PathVariable(value = "id") Long id, HttpServletRequest request);
+	@GetMapping("/events")
+	public List<EventShortDto> getEvents(@SpringQueryMap @Valid EventSearchParams params, HttpServletRequest request);
+
+	@GetMapping("/events/{id}")
+	public EventFullDto getEventById(@PathVariable(value = "id") Long id, HttpServletRequest request);
 }
