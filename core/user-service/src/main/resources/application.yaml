@@ -1,9 +1,9 @@
 server:
-  port: 8080
+  port: 0
 
 spring:
   application:
-    name: gateway-server
+    name: user-service
   config:
     import: "configserver:"
   cloud:
@@ -14,17 +14,14 @@ spring:
         serviceId: config-server
       retry:
         useRandomPolicy: true
-        initial-interval: 2000
         max-interval: 6000
 
 eureka:
   client:
+    enabled: true
+    register-with-eureka: true
     fetch-registry: true
-    registryFetchIntervalSeconds: 5
-    serviceUrl:
+    service-url:
       defaultZone: http://localhost:8761/eureka/
   instance:
-    preferIpAddress: true
-    hostname: localhost
-    instance-id: "${spring.application.name}:${random.value}"
-    leaseRenewalIntervalInSeconds: 10
+    prefer-ip-address: true

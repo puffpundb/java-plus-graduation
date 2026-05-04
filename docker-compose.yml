@@ -104,17 +104,71 @@ services:
 #    networks:
 #      - ewm-network
 
-  ewm-db:
+  event-db:
     image: postgres:16.1
-    container_name: postgres-ewm-db
+    container_name: postgres-event-db
     ports:
       - "5432:5432"
     environment:
       - POSTGRES_PASSWORD=password
       - POSTGRES_USER=user
-      - POSTGRES_DB=ewm-main
+      - POSTGRES_DB=event-service
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U user -d ewm-main" ]
+      test: [ "CMD-SHELL", "pg_isready -U user -d event-service" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ewm-network
+
+  comment-db:
+    image: postgres:16.1
+    container_name: postgres-comment-db
+    ports:
+      - "7654:5432"
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=user
+      - POSTGRES_DB=comment-service
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d comment-service" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ewm-network
+
+  request-db:
+    image: postgres:16.1
+    container_name: postgres-request-db
+    ports:
+      - "8765:5432"
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=user
+      - POSTGRES_DB=request-service
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d request-service" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ewm-network
+
+  user-db:
+    image: postgres:16.1
+    container_name: postgres-user-db
+    ports:
+      - "9876:5432"
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=user
+      - POSTGRES_DB=user-service
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d user-service" ]
       interval: 10s
       timeout: 5s
       retries: 5
