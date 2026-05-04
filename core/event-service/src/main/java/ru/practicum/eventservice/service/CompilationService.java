@@ -54,8 +54,19 @@ public class CompilationService {
 	}
 
 	private List<UserDto> fallbackFindUsers(List<Long> ids, int from, int size, Throwable t) {
-		log.warn("User-service unavailable, returning empty user list. Cause: {}", t.getMessage());
+		log.warn("User-service недоступен, возвращаем пустой список. Причина: {}", t.getMessage());
 		return Collections.emptyList();
+	}
+
+	@Retry(name = "eventServiceRetry", fallbackMethod = "fallbackGetConfirmedRequestsCounts")
+	protected Map<Long, Long> getConfirmedRequestsCounts(List<Long> eventIds) {
+		return internalRequestsFeignClient.getConfirmedRequestsCounts(eventIds);
+	}
+
+	private Map<Long, Long> fallbackGetConfirmedRequestsCounts(List<Long> eventIds, Throwable t) {
+		log.warn("Request-service недоступен, возвращаем 0 для eventIds: {}. Причина: {}", eventIds, t.getMessage());
+		if (eventIds == null || eventIds.isEmpty()) return Map.of();
+		return eventIds.stream().collect(Collectors.toMap(id -> id, id -> 0L));
 	}
 
 	@Retry(name = "eventServiceRetry", fallbackMethod = "fallbackGetConfirmedRequestsCount")
@@ -64,14 +75,16 @@ public class CompilationService {
 	}
 
 	private Long fallbackGetConfirmedRequestsCount(Long eventId, Throwable t) {
-		log.warn("Request-service unavailable, returning 0 for eventId={}", eventId);
+		log.warn("Request-service недоступен, возвращаем 0 для eventId: {}", eventId);
 		return 0L;
 	}
 
 	public List<CompilationDto> getCompilations(Boolean pinned, Integer from, Integer size, HttpServletRequest request) {
 		log.info("PublicCompilationService: выгрузка подборок по заданным параметрам");
 		List<Compilation> compilationsList = compilationRepository.findCompilations(pinned, from, size);
-		log.info("{}", compilationsList);
+		if (compilationsList.isEmpty()) {
+			return Collections.emptyList();
+		}
 
 		Set<Event> allEvents = compilationsList.stream()
 				.flatMap(comp -> comp.getEvents().stream())
@@ -88,21 +101,23 @@ public class CompilationService {
 
 		List<UserDto> users = findUsers(initiatorsIds, 0, initiatorsIds.size());
 		if (users == null || users.isEmpty()) {
-			log.warn("No users returned, returning empty compilations list");
+			log.warn("Не удалось получить пользователей, возвращаем пустой список подборок");
 			return Collections.emptyList();
 		}
-
 		Map<Long, UserDto> userMap = users.stream()
 				.collect(Collectors.toMap(UserDto::getId, u -> u));
 
 		Set<String> eventUris = allEvents.stream()
 				.map(event -> "/events/" + event.getId())
 				.collect(Collectors.toSet());
+		List<HitsCounterResponseDto> stats = statClient.getHits(new ArrayList<>(eventUris), false);
+		Map<Long, Long> eventViews = stats.stream()
+				.collect(Collectors.toMap(
+						dto -> EventMapper.extractIdFromUri(dto.getUri()),
+						HitsCounterResponseDto::getHits));
 
-		List<HitsCounterResponseDto> stats = statClient.getHits(eventUris.stream().toList(), false);
-		Map<Long, Long> eventViews = stats.stream().collect(Collectors.toMap(
-				dto -> EventMapper.extractIdFromUri(dto.getUri()),
-				HitsCounterResponseDto::getHits));
+		List<Long> allEventIds = allEvents.stream().map(Event::getId).toList();
+		Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(allEventIds);
 
 		List<CompilationDto> result = new ArrayList<>();
 		for (Compilation comp : compilationsList) {
@@ -110,15 +125,16 @@ public class CompilationService {
 					.map(event -> {
 						UserDto initiator = userMap.get(event.getInitiatorId());
 						if (initiator == null) {
-							log.warn("User not found for event {}", event.getId());
+							log.warn("Инициатор не найден для события {}", event.getId());
 							return null;
 						}
 						Long views = eventViews.getOrDefault(event.getId(), 0L);
-						Long confirmed = getConfirmedRequestsCount(event.getId());
+						Long confirmed = confirmedMap.getOrDefault(event.getId(), 0L);
 						return EventMapper.toEventShortDto(event, initiator, confirmed, views);
 					})
 					.filter(Objects::nonNull)
 					.collect(Collectors.toSet());
+
 			if (eventDtos.isEmpty() && !comp.getEvents().isEmpty()) {
 				continue;
 			}
@@ -147,25 +163,28 @@ public class CompilationService {
 
 		List<UserDto> users = findUsers(initiatorIds, 0, initiatorIds.size());
 		if (users == null || users.isEmpty()) {
-			log.warn("No users returned for compilation {}, returning empty events set", compilation.getId());
+			log.warn("Не удалось получить пользователей для подборки {}", compilation.getId());
 			return Collections.emptySet();
 		}
 
 		Map<Long, UserDto> userMap = users.stream()
 				.collect(Collectors.toMap(UserDto::getId, u -> u));
 
-		Set<Long> eventsId = events.stream().map(Event::getId).collect(Collectors.toSet());
-		Map<String, Long> eventIdEventHits = statisticsService.getEventShortDto(eventsId, false);
+		List<Long> allEventIds = events.stream().map(Event::getId).toList();
+		Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(allEventIds);
+
+		Set<Long> eventsIdSet = new HashSet<>(allEventIds);
+		Map<String, Long> eventIdEventHits = statisticsService.getEventShortDto(eventsIdSet, false);
 
 		return events.stream()
 				.map(event -> {
 					UserDto initiator = userMap.get(event.getInitiatorId());
 					if (initiator == null) {
-						log.warn("User not found for event {}, skipping", event.getId());
+						log.warn("Инициатор не найден для события {}", event.getId());
 						return null;
 					}
 					Long views = eventIdEventHits.getOrDefault(URI_EVENT_ENDPOINT + event.getId(), 0L);
-					Long confirmed = getConfirmedRequestsCount(event.getId());
+					Long confirmed = confirmedMap.getOrDefault(event.getId(), 0L);
 					return EventMapper.toEventShortDto(event, initiator, confirmed, views);
 				})
 				.filter(Objects::nonNull)
