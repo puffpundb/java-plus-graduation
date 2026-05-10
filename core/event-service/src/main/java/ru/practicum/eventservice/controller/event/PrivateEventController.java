@@ -10,9 +10,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.eventservice.service.EventService;
-import ru.practicum.iteractionapi.dto.event.*;
-import ru.practicum.iteractionapi.dto.request.ParticipationRequestDto;
-import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.PrivateEventFeignClient;
+import ru.practicum.iteractionapi.dto.event.EventFullDto;
+import ru.practicum.iteractionapi.dto.event.EventShortDto;
+import ru.practicum.iteractionapi.dto.event.NewEventDto;
+import ru.practicum.iteractionapi.dto.event.UpdateEventUserRequest;
 
 import java.util.List;
 

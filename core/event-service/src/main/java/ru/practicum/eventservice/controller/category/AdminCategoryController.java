@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 import ru.practicum.eventservice.service.CategoryService;
 import ru.practicum.iteractionapi.dto.category.CategoryDto;
 import ru.practicum.iteractionapi.dto.event.NewCategoryDto;
-import ru.practicum.iteractionapi.feignapi.categoryfeignclient.AdminCategoryFeignClient;
 
 @RestController
 @RequestMapping("/admin/categories")

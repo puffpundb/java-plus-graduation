@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.iteractionapi.dto.event.EventFullDto;
 import ru.practicum.iteractionapi.dto.event.EventRequestStatusUpdateRequest;
 import ru.practicum.iteractionapi.dto.event.EventRequestStatusUpdateResult;
-import ru.practicum.requestservice.entity.EventConfirmedCount;
 import ru.practicum.iteractionapi.dto.request.ParticipationRequestDto;
 import ru.practicum.iteractionapi.dto.user.UserDto;
 import ru.practicum.iteractionapi.error.ConflictException;
@@ -20,6 +19,7 @@ import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.InternalEventF
 import ru.practicum.iteractionapi.feignapi.userfeignclient.UserFeignClient;
 import ru.practicum.iteractionapi.model.enums.State;
 import ru.practicum.iteractionapi.model.enums.Status;
+import ru.practicum.requestservice.entity.EventConfirmedCount;
 import ru.practicum.requestservice.entity.Request;
 import ru.practicum.requestservice.mapper.RequestMapper;
 import ru.practicum.requestservice.repository.RequestRepository;

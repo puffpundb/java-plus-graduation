@@ -23,17 +23,14 @@ import ru.practicum.eventservice.repository.EventRepository;
 import ru.practicum.iteractionapi.dto.Constant;
 import ru.practicum.iteractionapi.dto.enums.AdminStateAction;
 import ru.practicum.iteractionapi.dto.event.*;
-import ru.practicum.iteractionapi.dto.request.ParticipationRequestDto;
 import ru.practicum.iteractionapi.dto.user.UserDto;
 import ru.practicum.iteractionapi.error.ConflictException;
 import ru.practicum.iteractionapi.error.NotFoundException;
 import ru.practicum.iteractionapi.error.ValidationException;
-import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.InternalEventFeignClient;
 import ru.practicum.iteractionapi.feignapi.requestfeignclient.InternalRequestsFeignClient;
 import ru.practicum.iteractionapi.feignapi.requestfeignclient.RequestFeignClient;
 import ru.practicum.iteractionapi.feignapi.userfeignclient.UserFeignClient;
 import ru.practicum.iteractionapi.model.enums.State;
-import ru.practicum.iteractionapi.model.enums.Status;
 import ru.practicum.iteractionapi.statistics.StatisticsService;
 
 import java.time.LocalDateTime;

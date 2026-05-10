@@ -14,7 +14,6 @@ import ru.practicum.eventservice.service.EventService;
 import ru.practicum.iteractionapi.dto.event.EventFullDto;
 import ru.practicum.iteractionapi.dto.event.EventSearchParams;
 import ru.practicum.iteractionapi.dto.event.EventShortDto;
-import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.PublicEventFeignClient;
 
 import java.util.List;
 
