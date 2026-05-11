@@ -6,6 +6,8 @@ import ru.practicum.ewm.stats.avro.UserActionAvro;
 import ru.practicum.ewm.stats.proto.ActionTypeProto;
 import ru.practicum.ewm.stats.proto.UserActionProto;
 
+import java.time.Instant;
+
 import static ru.practicum.ewm.stats.avro.ActionTypeAvro.*;
 
 public class AvroConverter {
@@ -14,7 +16,7 @@ public class AvroConverter {
 				.setUserId(p.getUserId())
 				.setEventId(p.getEventId())
 				.setActionType(convertActionType(p.getActionType()))
-				.setTimestamp(Timestamps.toMillis(p.getTimestamp()))
+				.setTimestamp(Instant.ofEpochSecond(p.getTimestamp().getSeconds(), p.getTimestamp().getNanos()))
 				.build();
 	}
 

@@ -22,14 +22,14 @@ public class UserActionController extends UserActionControllerGrpc.UserActionCon
 	String userActionTopic;
 
 	@Autowired
-	KafkaTemplate<String, UserActionAvro> kafkaTemplate;
+	KafkaTemplate<Long, UserActionAvro> kafkaTemplate;
 
 	@Override
 	public void collectUserAction(UserActionProto request, StreamObserver<Empty> responseObserver) {
 		log.info("UserActionController: получен запрос на отправление действия пользователя в kafka: {}", request);
 		try {
 			UserActionAvro avro = AvroConverter.toUserActionAvro(request);
-			kafkaTemplate.send(userActionTopic, String.valueOf(avro.getUserId()), avro);
+			kafkaTemplate.send(userActionTopic, avro.getUserId(), avro);
 
 			responseObserver.onNext(Empty.getDefaultInstance());
 			responseObserver.onCompleted();

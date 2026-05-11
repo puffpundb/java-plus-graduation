@@ -8,7 +8,7 @@ spring:
   kafka:
     bootstrap-servers: localhost:9092
     producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      key-serializer: org.apache.kafka.common.serialization.LongSerializer
       value-serializer: serializer.UserActionAvroSerializer
     topics:
       user-actions: stats.user-actions.v1
