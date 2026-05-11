@@ -77,8 +77,6 @@ public class AggregatorService {
 			Double newMinWeight = Math.min(newWeight, otherWeight);
 			Double deltaMin = newMinWeight - oldMinWeight;
 
-//			if (deltaMin == 0) continue;
-
 			Long first = Math.min(eventId, otherId);
 			Long second = Math.max(eventId, otherId);
 
