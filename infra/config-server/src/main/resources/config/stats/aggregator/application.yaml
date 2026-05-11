@@ -5,11 +5,11 @@ spring:
     bootstrap-servers: localhost:9092
     consumer:
       group-id: aggregator-group
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: ru.practicum.ewm.stats.avro.serializer.UserActionAvroDeserializer
+      key-deserializer: org.apache.kafka.common.serialization.LongDeserializer
+      value-deserializer: deserializer.UserActionAvroDeserializer
     producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: ru.practicum.ewm.stats.avro.serializer.EventSimilarityAvroSerializer
+      key-serializer: org.apache.kafka.common.serialization.LongSerializer
+      value-serializer: serializer.EventSimilarityAvroSerializer
     topics:
       user-actions: stats.user-actions.v1
       events-similarity: stats.events-similarity.v1
@@ -23,3 +23,9 @@ management:
   endpoint:
     health:
       enabled: true
+
+aggregator:
+  weights:
+    view: 0.4
+    register: 0.8
+    like: 1.0
