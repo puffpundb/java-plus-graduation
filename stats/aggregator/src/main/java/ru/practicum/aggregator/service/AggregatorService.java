@@ -20,11 +20,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AggregatorService {
-	@Value("${aggregator.weights.view:0.4}")
+	@Value("${aggregator.weights.view}")
 	double weightView;
-	@Value("${aggregator.weights.register:0.8}")
+	@Value("${aggregator.weights.register}")
 	double weightRegister;
-	@Value("${aggregator.weights.like:1.0}")
+	@Value("${aggregator.weights.like}")
 	double weightLike;
 
 	final SimilarityProducer similarityProducer;

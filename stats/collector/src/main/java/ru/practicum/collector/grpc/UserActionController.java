@@ -1,4 +1,4 @@
-package ru.practicum.collector.grpcclient;
+package ru.practicum.collector.grpc;
 
 import com.google.protobuf.Empty;
 import io.grpc.stub.StreamObserver;
