@@ -17,7 +17,7 @@ import ru.practicum.ewm.stats.proto.UserActionProto;
 @GrpcService
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Slf4j
-public class UserActionController extends UserActionControllerGrpc.UserActionControllerImplBase {
+public class UserActionService extends UserActionControllerGrpc.UserActionControllerImplBase {
 	@Value("${spring.kafka.topics.user-actions}")
 	String userActionTopic;
 
