@@ -11,16 +11,15 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.client.StatClient;
-import ru.practicum.dto.request.StatHitRequestDto;
-import ru.practicum.dto.response.HitsCounterResponseDto;
+import ru.practicum.client.AnalyzerClient;
+import ru.practicum.client.CollectorClient;
 import ru.practicum.eventservice.entity.Category;
 import ru.practicum.eventservice.entity.Event;
 import ru.practicum.eventservice.entity.Location;
 import ru.practicum.eventservice.mapper.EventMapper;
 import ru.practicum.eventservice.repository.CategoryRepository;
 import ru.practicum.eventservice.repository.EventRepository;
-import ru.practicum.iteractionapi.dto.Constant;
+import ru.practicum.ewm.stats.proto.RecommendedEventProto;
 import ru.practicum.iteractionapi.dto.enums.AdminStateAction;
 import ru.practicum.iteractionapi.dto.event.*;
 import ru.practicum.iteractionapi.dto.user.UserDto;
@@ -31,10 +30,8 @@ import ru.practicum.iteractionapi.feignapi.requestfeignclient.InternalRequestsFe
 import ru.practicum.iteractionapi.feignapi.requestfeignclient.RequestFeignClient;
 import ru.practicum.iteractionapi.feignapi.userfeignclient.UserFeignClient;
 import ru.practicum.iteractionapi.model.enums.State;
-import ru.practicum.iteractionapi.statistics.StatisticsService;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -47,8 +44,8 @@ public class EventService {
 	final EventRepository eventRepository;
 	final CategoryRepository categoryRepository;
 
-	final StatClient statClient;
-	final StatisticsService statsService;
+	final CollectorClient collectorClient;
+	final AnalyzerClient analyzerClient;
 
 	final UserFeignClient userFeignClient;
 	final RequestFeignClient requestFeignClient;
@@ -100,11 +97,14 @@ public class EventService {
 		if (rangeStart == null && rangeEnd == null) rangeStart = LocalDateTime.now();
 		if (rangeEnd == null) rangeEnd = LocalDateTime.now().plusYears(1000);
 
-		log.info("PublicEventService: Поиск ивентов с заданными параметрами");
+		log.info("PublicEventService: Поиск ивентов с заданными параметрами: text={}, categories={}, paid={}, rangeStart={}, rangeEnd={}, onlyAvailable={}, sort={}, from={}, size={}",
+				text, categories, paid, rangeStart, rangeEnd, onlyAvailable, sort, from, size);
+
 		Pageable pageable = PageRequest.of(from / size, size);
 		List<Event> eventsList = eventRepository.findPublicEvents(text, categories, paid, rangeStart, rangeEnd, pageable);
 
 		if (eventsList.isEmpty()) {
+			log.info("PublicEventService: Ивенты не найдены, возвращаем пустой список");
 			return Collections.emptyList();
 		}
 
@@ -123,34 +123,22 @@ public class EventService {
 		Map<Long, UserDto> userMap = users.stream()
 				.collect(Collectors.toMap(UserDto::getId, Function.identity()));
 
-		LocalDateTime startStat = eventsList.stream()
-				.map(Event::getPublishedOn)
-				.filter(Objects::nonNull)
-				.min(LocalDateTime::compareTo)
-				.orElseThrow(() -> new IllegalStateException("У событий отсутствует дата публикации"));
-		LocalDateTime statEnd = LocalDateTime.now();
-
-		List<String> eventsUrisList = eventsList.stream()
-				.map(event -> URI_EVENT_ENDPOINT + event.getId())
-				.toList();
-
-		List<HitsCounterResponseDto> hitsCounterList = statClient.getHits(startStat, statEnd, eventsUrisList, false);
-		Map<Long, Long> eventViews = hitsCounterList.stream()
-				.collect(Collectors.toMap(
-						dto -> EventMapper.extractIdFromUri(dto.getUri()),
-						HitsCounterResponseDto::getHits
-				));
-
 		List<Long> eventIds = eventsList.stream().map(Event::getId).toList();
+		log.debug("Получение рейтингов для eventIds={}", eventIds);
+		Map<Long, Double> ratingMap = analyzerClient.getInteractionsCount(eventIds)
+				.collect(Collectors.toMap(RecommendedEventProto::getEventId, RecommendedEventProto::getScore));
+		log.debug("Получены рейтинги: {}", ratingMap);
+
 		Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(eventIds);
+		log.debug("Получены подтверждённые заявки: {}", confirmedMap);
 
 		if (onlyAvailable) {
 			eventsList = eventsList.stream()
 					.filter(event -> event.getParticipantLimit() == 0 ||
 							confirmedMap.getOrDefault(event.getId(), 0L) < event.getParticipantLimit())
 					.toList();
-
 			if (eventsList.isEmpty()) {
+				log.info("После фильтрации onlyAvailable события не найдены");
 				return Collections.emptyList();
 			}
 		}
@@ -158,89 +146,62 @@ public class EventService {
 		List<EventShortDto> result = eventsList.stream()
 				.map(event -> {
 					UserDto initiator = userMap.get(event.getInitiatorId());
-					Long views = eventViews.getOrDefault(event.getId(), 0L);
 					Long confirmed = confirmedMap.getOrDefault(event.getId(), 0L);
-					return EventMapper.toEventShortDto(event, initiator, confirmed, views);
+					Double rating = ratingMap.getOrDefault(event.getId(), 0.0);
+					return EventMapper.toEventShortDto(event, initiator, confirmed, rating);
 				})
 				.toList();
 
 		if (sort == EventSort.VIEWS) {
+			log.debug("Сортировка по рейтингу (было VIEWS)");
 			result = result.stream()
-					.sorted(Comparator.comparingLong(EventShortDto::getViews).reversed())
+					.sorted(Comparator.comparingDouble(EventShortDto::getRating).reversed())
 					.toList();
 		}
 
-		if (request != null) {
-			statClient.hit(new StatHitRequestDto(Constant.SERVICE_POSTFIX,
-					request.getRequestURI(),
-					request.getRemoteAddr(),
-					LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constant.DATE_TIME_FORMAT)))
-			);
-		}
-
+		log.info("Найдено {} событий", result.size());
 		return result;
 	}
 
 	public EventFullDto internalGetById(Long id) {
-		log.info("PublicEventService: Поиск ивента с переданным id: {}", id);
+		log.info("PublicEventService: Поиск ивента с id={} (внутренний вызов)", id);
 		Event event = eventRepository.findById(id)
 				.orElseThrow(() -> new NotFoundException(String.format("Событие с id: %d не найдено", id)));
 
-		Long view = 0L;
 		List<UserDto> userList = findUsers(List.of(event.getInitiatorId()), 0, 1);
-		if (userList.isEmpty()) {
-			throw new NotFoundException("Пользователь не найдены: " + event.getInitiatorId());
-		}
+		if (userList.isEmpty()) throw new NotFoundException("Пользователь не найдены: " + event.getInitiatorId());
 		UserDto userDto = userList.getFirst();
 
 		Long confirmed = getConfirmedRequestsCount(id);
 
-		return EventMapper.toEventFullDto(event, userDto, confirmed, view);
+		Double rating = analyzerClient.getRatingForEvent(id);
+		log.debug("Рейтинг события {} = {}", id, rating);
+
+		return EventMapper.toEventFullDto(event, userDto, confirmed, rating);
 	}
 
-	public EventFullDto getById(Long id, HttpServletRequest request) {
-		log.info("PublicEventService: Поиск опубликованного ивента с переданным id: {}", id);
-		Event event = eventRepository.findPublishedById(id)
-				.orElseThrow(() -> new NotFoundException(String.format("Событие с id: %d не найдено", id)));
+	public EventFullDto getById(long userId, long eventId) {
+		log.info("PublicEventService: Поиск опубликованного ивента с id={} для пользователя {}", eventId, userId);
+		Event event = eventRepository.findPublishedById(eventId)
+				.orElseThrow(() -> new NotFoundException(String.format("Опубликованное событие с id: %d не найдено", eventId)));
 
-		log.info("PublicEventService: Выгрузка статистики по найденному ивенту");
+		collectorClient.sendView(userId, eventId);
+		log.debug("Отправлен VIEW в Collector: userId={}, eventId={}", userId, eventId);
 
-		if (request != null) {
-			statClient.hit(new StatHitRequestDto(Constant.SERVICE_POSTFIX,
-					request.getRequestURI(),
-					request.getRemoteAddr(),
-					LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constant.DATE_TIME_FORMAT)))
-			);
-		}
-
-		List<HitsCounterResponseDto> hitsCounter = statClient.getHits(event.getPublishedOn(),
-				LocalDateTime.now(),
-				List.of(URI_EVENT_ENDPOINT + event.getId()),
-				true);
-		Long views = hitsCounter.isEmpty() ? 0L : hitsCounter.getFirst().getHits();
+		Double rating = analyzerClient.getRatingForEvent(eventId);
+		log.debug("Рейтинг события {} = {}", eventId, rating);
 
 		List<UserDto> userList = findUsers(List.of(event.getInitiatorId()), 0, 1);
-		if (userList.isEmpty()) {
-			throw new NotFoundException("Пользователь не найден: " + event.getInitiatorId());
-		}
-		UserDto userDto = userList.getFirst();
+		if (userList.isEmpty()) throw new NotFoundException("Пользователь не найден: " + event.getInitiatorId());
+		UserDto initiator = userList.getFirst();
 
-		Long confirmed = getConfirmedRequestsCount(event.getId());
+		Long confirmed = getConfirmedRequestsCount(eventId);
 
-		return EventMapper.toEventFullDto(event, userDto, confirmed, views);
-	}
-
-	private Map<String, Long> getViewsForEvents(List<EventShortDto> events) {
-		if (events.isEmpty()) {
-			return Collections.emptyMap();
-		}
-		List<String> uris = events.stream()
-				.map(dto -> URI_EVENT_ENDPOINT + dto.getId())
-				.collect(Collectors.toList());
-		return statsService.getViewsByUris(uris, false);
+		return EventMapper.toEventFullDto(event, initiator, confirmed, rating);
 	}
 
 	public List<EventShortDto> getEventsByOwner(Long userId, Long from, Long size) {
+		log.info("EventService: Получение событий пользователя userId={}, from={}, size={}", userId, from, size);
 		int page = from.intValue() / size.intValue();
 		Pageable pageable = PageRequest.of(page, size.intValue());
 
@@ -248,37 +209,34 @@ public class EventService {
 		List<Event> events = eventPage.getContent();
 
 		if (events.isEmpty()) {
+			log.info("У пользователя {} нет событий", userId);
 			return Collections.emptyList();
 		}
 
 		List<UserDto> userList = findUsers(List.of(userId), 0, 1);
-		if (userList.isEmpty()) {
-			throw new NotFoundException("Пользователь не найден: " + userId);
-		}
+		if (userList.isEmpty()) throw new NotFoundException("Пользователь не найден: " + userId);
 		UserDto initiator = userList.getFirst();
 
 		List<Long> eventIds = events.stream().map(Event::getId).toList();
 		Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(eventIds);
+		Map<Long, Double> ratingMap = analyzerClient.getInteractionsCount(eventIds)
+				.collect(Collectors.toMap(RecommendedEventProto::getEventId, RecommendedEventProto::getScore));
 
 		List<EventShortDto> dtos = events.stream()
 				.map(event -> {
 					Long confirmed = confirmedMap.getOrDefault(event.getId(), 0L);
-					return EventMapper.toEventShortDto(event, initiator, confirmed, 0L);
+					Double rating = ratingMap.getOrDefault(event.getId(), 0.0);
+					return EventMapper.toEventShortDto(event, initiator, confirmed, rating);
 				})
 				.collect(Collectors.toList());
 
-		Map<String, Long> viewsMap = getViewsForEvents(dtos);
-		dtos.forEach(dto -> {
-			String uriKey = URI_EVENT_ENDPOINT + dto.getId();
-			Long views = viewsMap.getOrDefault(uriKey, 0L);
-			dto.setViews(views);
-		});
-
+		log.info("Найдено {} событий для пользователя {}", dtos.size(), userId);
 		return dtos;
 	}
 
 	@Transactional
 	public EventFullDto createEvent(Long userId, NewEventDto newEventDto) {
+		log.info("EventService: Создание события пользователем userId={}, newEventDto={}", userId, newEventDto);
 		if (newEventDto.getEventDate().isBefore(LocalDateTime.now().plusHours(2))) {
 			throw new ValidationException("Время события должно быть за два часа до события.");
 		}
@@ -292,29 +250,29 @@ public class EventService {
 		Event event = eventRepository.save(EventMapper.newEventDtoToEvent(newEventDto, userId, category));
 
 		Long confirmed = 0L;
-
-		return EventMapper.toEventFullDto(event, userList.getFirst(), confirmed, 0L);
+		Double rating = 0.0;
+		log.info("Событие создано: id={}", event.getId());
+		return EventMapper.toEventFullDto(event, userList.getFirst(), confirmed, rating);
 	}
 
 	public EventFullDto getInfoEvent(Long userId, Long eventId) {
+		log.info("EventService: Получение информации о событии eventId={} для userId={}", eventId, userId);
 		Event event = eventRepository.findById(eventId)
 				.orElseThrow(() -> new NotFoundException("Такого события не найдено."));
 
 		List<UserDto> userList = findUsers(List.of(userId), 0, 1);
 		if (userList.isEmpty()) throw new NotFoundException("Такого пользователя не существует.");
 
-		List<HitsCounterResponseDto> hitsCounter = statClient.getHits(
-				List.of(URI_EVENT_ENDPOINT + event.getId()),
-				true);
-		Long views = hitsCounter.isEmpty() ? 0L : hitsCounter.getFirst().getHits();
+		Long confirmed = getConfirmedRequestsCount(eventId);
+		Double rating = analyzerClient.getRatingForEvent(eventId);
+		log.debug("Рейтинг события {} = {}", eventId, rating);
 
-		Long confirmed = getConfirmedRequestsCount(event.getId());
-
-		return EventMapper.toEventFullDto(event, userList.getFirst(), confirmed, views);
+		return EventMapper.toEventFullDto(event, userList.getFirst(), confirmed, rating);
 	}
 
 	@Transactional
 	public EventFullDto updateEvent(Long userId, Long eventId, UpdateEventUserRequest updateEventUserRequest) {
+		log.info("EventService: Обновление события userId={}, eventId={}, updateRequest={}", userId, eventId, updateEventUserRequest);
 		Event event = eventRepository.findById(eventId)
 				.orElseThrow(() -> new NotFoundException("Такого события не найдено."));
 
@@ -331,11 +289,14 @@ public class EventService {
 		Event updateEvent = eventRepository.save(EventMapper.updateEventDtoToEvent(event, updateEventUserRequest, category));
 
 		Long confirmed = getConfirmedRequestsCount(updateEvent.getId());
+		Double rating = analyzerClient.getRatingForEvent(updateEvent.getId());
 
-		return EventMapper.toEventFullDto(updateEvent, userList.getFirst(), confirmed, 0L);
+		log.info("Событие {} обновлено", eventId);
+		return EventMapper.toEventFullDto(updateEvent, userList.getFirst(), confirmed, rating);
 	}
 
 	public List<EventFullDto> getFullEvents(AdminEventParam params) {
+		log.info("AdminEventService: Получение событий с параметрами: {}", params);
 		List<State> states = convertStatesEnum(params.getStates());
 
 		int pageNumber = params.getFrom() / params.getSize();
@@ -350,7 +311,10 @@ public class EventService {
 				pageable
 		);
 
-		if (events.isEmpty()) return Collections.emptyList();
+		if (events.isEmpty()) {
+			log.info("События не найдены");
+			return Collections.emptyList();
+		}
 
 		List<Long> initiatorIds = events.stream()
 				.map(Event::getInitiatorId)
@@ -362,30 +326,28 @@ public class EventService {
 			log.error("Не удалось получить данные пользователей для событий. Возвращаем пустой список.");
 			return Collections.emptyList();
 		}
-
 		Map<Long, UserDto> userMap = users.stream()
 				.collect(Collectors.toMap(UserDto::getId, Function.identity()));
 
-		List<String> uris = events.stream()
-				.map(event -> URI_EVENT_ENDPOINT + event.getId())
-				.toList();
-
-		Map<String, Long> eventHits = statsService.getViewsByUris(uris, false);
-
 		List<Long> eventIds = events.stream().map(Event::getId).toList();
 		Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(eventIds);
+		Map<Long, Double> ratingMap = analyzerClient.getInteractionsCount(eventIds)
+				.collect(Collectors.toMap(RecommendedEventProto::getEventId, RecommendedEventProto::getScore));
 
-		return events.stream()
+		List<EventFullDto> result = events.stream()
 				.map(event -> {
-					Long views = eventHits.getOrDefault(URI_EVENT_ENDPOINT + event.getId(), 0L);
 					UserDto initiator = userMap.get(event.getInitiatorId());
 					if (initiator == null) {
 						throw new NotFoundException("User not found: " + event.getInitiatorId());
 					}
 					Long confirmed = confirmedMap.getOrDefault(event.getId(), 0L);
-					return EventMapper.toEventFullDto(event, initiator, confirmed, views);
+					Double rating = ratingMap.getOrDefault(event.getId(), 0.0);
+					return EventMapper.toEventFullDto(event, initiator, confirmed, rating);
 				})
 				.toList();
+
+		log.info("Найдено {} событий", result.size());
+		return result;
 	}
 
 	private List<State> convertStatesEnum(List<String> states) {
@@ -405,23 +367,24 @@ public class EventService {
 
 	@Transactional
 	public EventFullDto updateEventByAdmin(Long eventId, UpdateEventAdminRequest request) {
+		log.info("AdminEventService: Обновление события eventId={} запросом: {}", eventId, request);
 		Event event = eventRepository.findById(eventId)
 				.orElseThrow(() -> new NotFoundException("Событие с id=" + eventId + " не найдено."));
 
 		if (request.getStateAction() != null) {
-
 			if (request.getStateAction() == AdminStateAction.PUBLISH_EVENT) {
 				if (event.getState() != State.PENDING) {
 					throw new ConflictException("Cобытие можно публиковать, только если оно в состоянии ожидания публикации");
 				}
 				event.setState(State.PUBLISHED);
 				event.setPublishedOn(LocalDateTime.now());
-
+				log.info("Событие {} опубликовано", eventId);
 			} else if (request.getStateAction() == AdminStateAction.REJECT_EVENT) {
 				if (event.getState() == State.PUBLISHED) {
 					throw new ConflictException("Cобытие можно отклонить, только если оно еще не опубликовано");
 				}
 				event.setState(State.CANCELED);
+				log.info("Событие {} отклонено", eventId);
 			}
 		}
 
@@ -429,60 +392,44 @@ public class EventService {
 		Event updatedEvent = eventRepository.save(event);
 
 		List<UserDto> users = findUsers(List.of(updatedEvent.getInitiatorId()), 0, 1);
-		if (users.isEmpty()) {
-			throw new NotFoundException("Пользователь не найден: " + updatedEvent.getInitiatorId());
-		}
+		if (users.isEmpty()) throw new NotFoundException("Пользователь не найден: " + updatedEvent.getInitiatorId());
 		UserDto initiator = users.getFirst();
 
-		String uri = URI_EVENT_ENDPOINT + event.getId();
-		Long views = statsService.getViewsByUri(uri,false);
-
 		Long confirmed = getConfirmedRequestsCount(updatedEvent.getId());
+		Double rating = analyzerClient.getRatingForEvent(updatedEvent.getId());
 
-		return EventMapper.toEventFullDto(updatedEvent, initiator, confirmed, views);
+		return EventMapper.toEventFullDto(updatedEvent, initiator, confirmed, rating);
 	}
 
 	private void updateEventFields(Event event, UpdateEventAdminRequest request) {
-		if (request.getAnnotation() != null) {
-			event.setAnnotation(request.getAnnotation());
-		}
-
+		if (request.getAnnotation() != null) event.setAnnotation(request.getAnnotation());
 		if (request.getCategoryId() != null) {
 			Category category = categoryRepository.findById(request.getCategoryId())
 					.orElseThrow(() -> new NotFoundException("Категория с id=" + request.getCategoryId() + " не найдена."));
 			event.setCategory(category);
 		}
-
-		if (request.getDescription() != null) {
-			event.setDescription(request.getDescription());
-		}
-
-		if (request.getEventDate() != null) {
-			event.setEventDate(request.getEventDate());
-		}
-
+		if (request.getDescription() != null) event.setDescription(request.getDescription());
+		if (request.getEventDate() != null) event.setEventDate(request.getEventDate());
 		if (request.getLocationDto() != null) {
-			event.setLocation(
-					Location.builder()
-							.lat(request.getLocationDto().getLat())
-							.lon(request.getLocationDto().getLon())
-							.build());
+			event.setLocation(Location.builder().lat(request.getLocationDto().getLat()).lon(request.getLocationDto().getLon()).build());
 		}
+		if (request.getPaid() != null) event.setPaid(request.getPaid());
+		if (request.getParticipantLimit() != null) event.setParticipantLimit(request.getParticipantLimit());
+		if (request.getRequestModeration() != null) event.setRequestModeration(request.getRequestModeration());
+		if (request.getTitle() != null) event.setTitle(request.getTitle());
+	}
 
-		if (request.getPaid() != null) {
-			event.setPaid(request.getPaid());
-		}
+	public List<RecommendedEventProto> getRecommendationsForUser(long userId, int maxResults) {
+		log.info("Запрос рекомендаций для пользователя {} с лимитом {}", userId, maxResults);
+		List<RecommendedEventProto> recommendations = analyzerClient.getRecommendationsForUser(userId, maxResults)
+				.collect(Collectors.toList());
+		log.debug("Получено {} рекомендаций", recommendations.size());
+		return recommendations;
+	}
 
-		if (request.getParticipantLimit() != null) {
-			event.setParticipantLimit(request.getParticipantLimit());
-		}
-
-		if (request.getRequestModeration() != null) {
-			event.setRequestModeration(request.getRequestModeration());
-		}
-
-		if (request.getTitle() != null) {
-			event.setTitle(request.getTitle());
-		}
+	public void likeEvent(long userId, long eventId) {
+		log.info("Пользователь {} ставит лайк событию {}", userId, eventId);
+		collectorClient.sendLike(userId, eventId);
+		log.debug("Лайк отправлен в Collector");
 	}
 }

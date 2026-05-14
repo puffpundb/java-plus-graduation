@@ -1,6 +1,5 @@
 package ru.practicum.collector.converter;
 
-import com.google.protobuf.util.Timestamps;
 import ru.practicum.ewm.stats.avro.ActionTypeAvro;
 import ru.practicum.ewm.stats.avro.UserActionAvro;
 import ru.practicum.ewm.stats.proto.ActionTypeProto;

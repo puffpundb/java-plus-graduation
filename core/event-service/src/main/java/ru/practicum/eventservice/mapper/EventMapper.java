@@ -20,7 +20,7 @@ public class EventMapper {
                 .build();
     }
 
-    public EventShortDto toEventShortDto(Event event, UserDto initiator, Long confirmedRequests, Long views) {
+    public EventShortDto toEventShortDto(Event event, UserDto initiator, Long confirmedRequests, Double rating) {
         return EventShortDto.builder()
                 .annotation(event.getAnnotation())
                 .categoryDto(CategoryMapper.toCategoryDto(event.getCategory()))
@@ -30,11 +30,11 @@ public class EventMapper {
                 .initiatorDto(toUserShortDto(initiator))
                 .paid(event.getPaid())
                 .title(event.getTitle())
-                .views(views != null ? views : 0L)
+                .rating(rating != null ? rating : 0.0)
                 .build();
     }
 
-    public EventFullDto toEventFullDto(Event event, UserDto initiator, Long confirmedRequests, Long views) {
+    public EventFullDto toEventFullDto(Event event, UserDto initiator, Long confirmedRequests, Double rating) {
         return EventFullDto.builder()
                 .annotation(event.getAnnotation())
                 .categoryDto(CategoryMapper.toCategoryDto(event.getCategory()))
@@ -51,7 +51,7 @@ public class EventMapper {
                 .publishedOn(event.getPublishedOn())
                 .requestModeration(event.getRequestModeration())
                 .title(event.getTitle())
-                .views(views != null ? views : 0L)
+                .rating(rating != null ? rating : 0.0)
                 .build();
     }
 
@@ -93,14 +93,6 @@ public class EventMapper {
         if (state == null) {
             event.setState(State.PENDING);
         }
-
         return event;
-    }
-
-    public static Long extractIdFromUri(String uri) {
-        String[] parts = uri.split("/");
-        String id = parts[parts.length - 1];
-
-        return Long.parseLong(id);
     }
 }

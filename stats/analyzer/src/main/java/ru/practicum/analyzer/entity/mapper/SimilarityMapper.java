@@ -4,8 +4,6 @@ import org.springframework.stereotype.Component;
 import ru.practicum.analyzer.entity.Similarity;
 import ru.practicum.ewm.stats.avro.EventSimilarityAvro;
 
-import java.time.Instant;
-
 @Component
 public class SimilarityMapper {
 	public Similarity toSimilarity(EventSimilarityAvro avro) {

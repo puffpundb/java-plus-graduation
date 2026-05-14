@@ -2,14 +2,11 @@ package ru.practicum.analyzer.entity.mapper;
 
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
-import lombok.experimental.UtilityClass;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import ru.practicum.analyzer.entity.Interaction;
 import ru.practicum.ewm.stats.avro.ActionTypeAvro;
 import ru.practicum.ewm.stats.avro.UserActionAvro;
-
-import java.time.Instant;
 
 @Component
 @FieldDefaults(level = AccessLevel.PRIVATE)

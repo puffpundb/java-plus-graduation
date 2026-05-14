@@ -7,16 +7,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import ru.practicum.client.StatClient;
-import ru.practicum.dto.request.StatHitRequestDto;
-import ru.practicum.dto.response.HitsCounterResponseDto;
+import ru.practicum.client.AnalyzerClient;
 import ru.practicum.eventservice.entity.Compilation;
 import ru.practicum.eventservice.entity.Event;
 import ru.practicum.eventservice.mapper.CompilationMapper;
 import ru.practicum.eventservice.mapper.EventMapper;
 import ru.practicum.eventservice.repository.CompilationRepository;
 import ru.practicum.eventservice.repository.EventRepository;
-import ru.practicum.iteractionapi.dto.Constant;
+import ru.practicum.ewm.stats.proto.RecommendedEventProto;
 import ru.practicum.iteractionapi.dto.event.CompilationDto;
 import ru.practicum.iteractionapi.dto.event.EventShortDto;
 import ru.practicum.iteractionapi.dto.event.NewCompilationDto;
@@ -26,10 +24,7 @@ import ru.practicum.iteractionapi.error.ConflictException;
 import ru.practicum.iteractionapi.error.NotFoundException;
 import ru.practicum.iteractionapi.feignapi.requestfeignclient.InternalRequestsFeignClient;
 import ru.practicum.iteractionapi.feignapi.userfeignclient.UserFeignClient;
-import ru.practicum.iteractionapi.statistics.StatisticsService;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,17 +34,14 @@ import java.util.stream.Collectors;
 @Slf4j
 public class CompilationService {
 	final CompilationRepository compilationRepository;
-	final StatisticsService statisticsService;
-	final StatClient statClient;
 	final EventRepository eventRepository;
-
+	final AnalyzerClient analyzerClient;
 	final UserFeignClient userFeignClient;
 	final InternalRequestsFeignClient internalRequestsFeignClient;
 
-	final String URI_EVENT_ENDPOINT = "/events/";
-
 	@Retry(name = "eventServiceRetry", fallbackMethod = "fallbackFindUsers")
 	protected List<UserDto> findUsers(List<Long> ids, int from, int size) {
+		log.debug("Запрос пользователей с ids={}", ids);
 		return userFeignClient.findUsers(ids, from, size);
 	}
 
@@ -60,6 +52,7 @@ public class CompilationService {
 
 	@Retry(name = "eventServiceRetry", fallbackMethod = "fallbackGetConfirmedRequestsCounts")
 	protected Map<Long, Long> getConfirmedRequestsCounts(List<Long> eventIds) {
+		log.debug("Запрос подтверждённых заявок для eventIds={}", eventIds);
 		return internalRequestsFeignClient.getConfirmedRequestsCounts(eventIds);
 	}
 
@@ -80,7 +73,7 @@ public class CompilationService {
 	}
 
 	public List<CompilationDto> getCompilations(Boolean pinned, Integer from, Integer size, HttpServletRequest request) {
-		log.info("PublicCompilationService: выгрузка подборок по заданным параметрам");
+		log.info("PublicCompilationService: выгрузка подборок по параметрам pinned={}, from={}, size={}", pinned, from, size);
 		List<Compilation> compilationsList = compilationRepository.findCompilations(pinned, from, size);
 		if (compilationsList.isEmpty()) {
 			return Collections.emptyList();
@@ -91,7 +84,9 @@ public class CompilationService {
 				.collect(Collectors.toSet());
 
 		if (allEvents.isEmpty()) {
-			return Collections.emptyList();
+			return compilationsList.stream()
+					.map(comp -> CompilationMapper.toCompilationDto(comp, Collections.emptySet()))
+					.collect(Collectors.toList());
 		}
 
 		List<Long> initiatorsIds = allEvents.stream()
@@ -107,16 +102,9 @@ public class CompilationService {
 		Map<Long, UserDto> userMap = users.stream()
 				.collect(Collectors.toMap(UserDto::getId, u -> u));
 
-		Set<String> eventUris = allEvents.stream()
-				.map(event -> "/events/" + event.getId())
-				.collect(Collectors.toSet());
-		List<HitsCounterResponseDto> stats = statClient.getHits(new ArrayList<>(eventUris), false);
-		Map<Long, Long> eventViews = stats.stream()
-				.collect(Collectors.toMap(
-						dto -> EventMapper.extractIdFromUri(dto.getUri()),
-						HitsCounterResponseDto::getHits));
-
 		List<Long> allEventIds = allEvents.stream().map(Event::getId).toList();
+		Map<Long, Double> ratingMap = analyzerClient.getInteractionsCount(allEventIds)
+				.collect(Collectors.toMap(RecommendedEventProto::getEventId, RecommendedEventProto::getScore));
 		Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(allEventIds);
 
 		List<CompilationDto> result = new ArrayList<>();
@@ -128,9 +116,9 @@ public class CompilationService {
 							log.warn("Инициатор не найден для события {}", event.getId());
 							return null;
 						}
-						Long views = eventViews.getOrDefault(event.getId(), 0L);
+						Double rating = ratingMap.getOrDefault(event.getId(), 0.0);
 						Long confirmed = confirmedMap.getOrDefault(event.getId(), 0L);
-						return EventMapper.toEventShortDto(event, initiator, confirmed, views);
+						return EventMapper.toEventShortDto(event, initiator, confirmed, rating);
 					})
 					.filter(Objects::nonNull)
 					.collect(Collectors.toSet());
@@ -141,16 +129,10 @@ public class CompilationService {
 			result.add(CompilationMapper.toCompilationDto(comp, eventDtos));
 		}
 
-		statClient.hit(new StatHitRequestDto(Constant.SERVICE_POSTFIX,
-				request.getRequestURI(),
-				request.getRemoteAddr(),
-				LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constant.DATE_TIME_FORMAT)))
-		);
-
 		return result;
 	}
 
-	private Set<EventShortDto> setViewsToEventShortDto(Compilation compilation) {
+	private Set<EventShortDto> setRatingToEventShortDto(Compilation compilation) {
 		Set<Event> events = compilation.getEvents();
 		if (events.isEmpty()) {
 			return Collections.emptySet();
@@ -172,9 +154,8 @@ public class CompilationService {
 
 		List<Long> allEventIds = events.stream().map(Event::getId).toList();
 		Map<Long, Long> confirmedMap = getConfirmedRequestsCounts(allEventIds);
-
-		Set<Long> eventsIdSet = new HashSet<>(allEventIds);
-		Map<String, Long> eventIdEventHits = statisticsService.getEventShortDto(eventsIdSet, false);
+		Map<Long, Double> ratingMap = analyzerClient.getInteractionsCount(allEventIds)
+				.collect(Collectors.toMap(RecommendedEventProto::getEventId, RecommendedEventProto::getScore));
 
 		return events.stream()
 				.map(event -> {
@@ -183,9 +164,9 @@ public class CompilationService {
 						log.warn("Инициатор не найден для события {}", event.getId());
 						return null;
 					}
-					Long views = eventIdEventHits.getOrDefault(URI_EVENT_ENDPOINT + event.getId(), 0L);
+					Double rating = ratingMap.getOrDefault(event.getId(), 0.0);
 					Long confirmed = confirmedMap.getOrDefault(event.getId(), 0L);
-					return EventMapper.toEventShortDto(event, initiator, confirmed, views);
+					return EventMapper.toEventShortDto(event, initiator, confirmed, rating);
 				})
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet());
@@ -196,14 +177,7 @@ public class CompilationService {
 		Compilation compilation = compilationRepository.findById(compId)
 				.orElseThrow(() -> new NotFoundException(String.format("Подборка с id: %d не найдена", compId)));
 
-		Set<EventShortDto> eventShortDtoList = setViewsToEventShortDto(compilation);
-
-		statClient.hit(new StatHitRequestDto(Constant.SERVICE_POSTFIX,
-				request.getRequestURI(),
-				request.getRemoteAddr(),
-				LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constant.DATE_TIME_FORMAT)))
-		);
-
+		Set<EventShortDto> eventShortDtoList = setRatingToEventShortDto(compilation);
 		return CompilationMapper.toCompilationDto(compilation, eventShortDtoList);
 	}
 
@@ -222,7 +196,7 @@ public class CompilationService {
 				throw new NotFoundException("Некоторые события не были найдены.");
 			}
 			compilation.setEvents(events);
-			eventShortDtos = setViewsToEventShortDto(compilation);
+			eventShortDtos = setRatingToEventShortDto(compilation);
 		}
 
 		Compilation savedCompilation = compilationRepository.save(compilation);
@@ -270,7 +244,7 @@ public class CompilationService {
 
 		Set<EventShortDto> eventShortDtos;
 		if (events != null && !events.isEmpty()) {
-			eventShortDtos = setViewsToEventShortDto(savedCompilation);
+			eventShortDtos = setRatingToEventShortDto(savedCompilation);
 		} else {
 			eventShortDtos = Collections.emptySet();
 		}
