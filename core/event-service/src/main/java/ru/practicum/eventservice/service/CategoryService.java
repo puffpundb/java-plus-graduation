@@ -9,18 +9,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import ru.practicum.dto.request.StatHitRequestDto;
 import ru.practicum.eventservice.entity.Category;
 import ru.practicum.eventservice.mapper.CategoryMapper;
 import ru.practicum.eventservice.repository.CategoryRepository;
-import ru.practicum.iteractionapi.dto.Constant;
 import ru.practicum.iteractionapi.dto.category.CategoryDto;
 import ru.practicum.iteractionapi.dto.event.NewCategoryDto;
 import ru.practicum.iteractionapi.error.ConflictException;
 import ru.practicum.iteractionapi.error.NotFoundException;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
