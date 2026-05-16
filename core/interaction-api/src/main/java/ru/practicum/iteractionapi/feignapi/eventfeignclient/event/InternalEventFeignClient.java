@@ -1,10 +1,10 @@
 package ru.practicum.iteractionapi.feignapi.eventfeignclient.event;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.cloud.openfeign.SpringQueryMap;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import ru.practicum.iteractionapi.dto.event.EventFullDto;
 import ru.practicum.iteractionapi.dto.event.EventSearchParams;
 import ru.practicum.iteractionapi.dto.event.EventShortDto;

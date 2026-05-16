@@ -7,10 +7,10 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.client.CollectorClient;
 import ru.practicum.iteractionapi.dto.event.EventFullDto;
 import ru.practicum.iteractionapi.dto.event.EventRequestStatusUpdateRequest;
 import ru.practicum.iteractionapi.dto.event.EventRequestStatusUpdateResult;
-import ru.practicum.requestservice.entity.EventConfirmedCount;
 import ru.practicum.iteractionapi.dto.request.ParticipationRequestDto;
 import ru.practicum.iteractionapi.dto.user.UserDto;
 import ru.practicum.iteractionapi.error.ConflictException;
@@ -20,6 +20,7 @@ import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.InternalEventF
 import ru.practicum.iteractionapi.feignapi.userfeignclient.UserFeignClient;
 import ru.practicum.iteractionapi.model.enums.State;
 import ru.practicum.iteractionapi.model.enums.Status;
+import ru.practicum.requestservice.entity.EventConfirmedCount;
 import ru.practicum.requestservice.entity.Request;
 import ru.practicum.requestservice.mapper.RequestMapper;
 import ru.practicum.requestservice.repository.RequestRepository;
@@ -36,6 +37,8 @@ public class RequestService {
 
 	final InternalEventFeignClient internalEventFeignClient;
 	final UserFeignClient userFeignClient;
+
+	final CollectorClient collectorClient;
 
 	@Retry(name = "requestServiceRetry", fallbackMethod = "fallbackGetEventById")
 	protected EventFullDto getEventById(Long eventId) {
@@ -55,6 +58,17 @@ public class RequestService {
 	private List<UserDto> fallbackFindUsers(List<Long> ids, int from, int size, Throwable t) {
 		log.warn("User-service недоступен, возвращаем пустой список пользователей. Причина: {}", t.getMessage());
 		return Collections.emptyList();
+	}
+
+	private EventFullDto checkAndGetEvent(Long eventId) {
+		return getEventById(eventId);
+	}
+
+	private void checkUser(Long userId) {
+		List<UserDto> user = findUsers(List.of(userId), 0, 1);
+		if (user == null || user.isEmpty()) {
+			throw new NotFoundException("Пользователь не найден или сервис пользователей недоступен");
+		}
 	}
 
 	@Transactional
@@ -132,17 +146,6 @@ public class RequestService {
 				.build();
 	}
 
-	private EventFullDto checkAndGetEvent(Long eventId) {
-		return getEventById(eventId);
-	}
-
-	private void checkUser(Long userId) {
-		List<UserDto> user = findUsers(List.of(userId), 0, 1);
-		if (user == null || user.isEmpty()) {
-			throw new NotFoundException("Пользователь не найден или сервис пользователей недоступен");
-		}
-	}
-
 	public List<ParticipationRequestDto> getInfoRequest(Long userId, Long eventId) {
 		checkAndGetEvent(eventId);
 		checkUser(userId);
@@ -164,7 +167,6 @@ public class RequestService {
 		}
 
 		long confirmedRequest = requestRepository.countByEventIdAndStatus(eventId, Status.CONFIRMED);
-
 		if (event.getParticipantLimit() != 0 && event.getParticipantLimit() <= confirmedRequest) {
 			throw new ConflictException("У события достигнут лимит запросов на участие");
 		}
@@ -183,7 +185,12 @@ public class RequestService {
 			request.setStatus(Status.CONFIRMED);
 		}
 
-		return RequestMapper.toRequestDto(requestRepository.save(request));
+		Request savedRequest = requestRepository.save(request);
+
+		collectorClient.sendRegister(userId, eventId);
+		log.debug("Отправлен REGISTER в Collector: userId={}, eventId={}", userId, eventId);
+
+		return RequestMapper.toRequestDto(savedRequest);
 	}
 
 	@Transactional

@@ -13,7 +13,6 @@ import ru.practicum.eventservice.service.CompilationService;
 import ru.practicum.iteractionapi.dto.event.CompilationDto;
 import ru.practicum.iteractionapi.dto.event.NewCompilationDto;
 import ru.practicum.iteractionapi.dto.event.UpdateCompilationRequest;
-import ru.practicum.iteractionapi.feignapi.eventfeignclient.compilation.AdminCompilationFeignClient;
 
 @RestController
 @RequestMapping("/admin/compilations")

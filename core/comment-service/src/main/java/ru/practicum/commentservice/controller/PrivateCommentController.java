@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 import ru.practicum.commentservice.service.CommentService;
 import ru.practicum.iteractionapi.dto.comment.CommentDto;
 import ru.practicum.iteractionapi.dto.comment.CommentRequestDto;
-import ru.practicum.iteractionapi.feignapi.commentfeignclient.PrivateCommentFeignClient;
 
 
 @Slf4j

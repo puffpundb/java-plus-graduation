@@ -9,19 +9,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import ru.practicum.client.StatClient;
-import ru.practicum.dto.request.StatHitRequestDto;
 import ru.practicum.eventservice.entity.Category;
 import ru.practicum.eventservice.mapper.CategoryMapper;
 import ru.practicum.eventservice.repository.CategoryRepository;
-import ru.practicum.iteractionapi.dto.Constant;
 import ru.practicum.iteractionapi.dto.category.CategoryDto;
 import ru.practicum.iteractionapi.dto.event.NewCategoryDto;
 import ru.practicum.iteractionapi.error.ConflictException;
 import ru.practicum.iteractionapi.error.NotFoundException;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
@@ -30,7 +25,6 @@ import java.util.List;
 @Slf4j
 public class CategoryService {
 	final CategoryRepository categoryRepository;
-	final StatClient statClient;
 
 	@Retry(name = "eventServiceRetry")
 	public List<CategoryDto> getCategories(Integer from, Integer size, HttpServletRequest request) {
@@ -38,12 +32,6 @@ public class CategoryService {
 		Pageable pageable = PageRequest.of(from / size, size);
 		List<Category> categoryList = categoryRepository.findAll(pageable).getContent();
 		log.info("{}", categoryList);
-
-		statClient.hit(new StatHitRequestDto(Constant.SERVICE_POSTFIX,
-				request.getRequestURI(),
-				request.getRemoteAddr(),
-				LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constant.DATE_TIME_FORMAT)))
-		);
 
 		return categoryList.stream().map(CategoryMapper::toCategoryDto).toList();
 	}
@@ -54,12 +42,6 @@ public class CategoryService {
 		Category category = categoryRepository.findById(catId)
 				.orElseThrow(() -> new NotFoundException(String.format("Категория с id: %d не найдена", catId)));
 		log.info("{}", category);
-
-		statClient.hit(new StatHitRequestDto(Constant.SERVICE_POSTFIX,
-				request.getRequestURI(),
-				request.getRemoteAddr(),
-				LocalDateTime.now().format(DateTimeFormatter.ofPattern(Constant.DATE_TIME_FORMAT)))
-		);
 
 		return CategoryMapper.toCategoryDto(category);
 	}

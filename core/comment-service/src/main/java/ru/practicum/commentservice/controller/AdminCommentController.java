@@ -13,7 +13,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.commentservice.service.CommentService;
 import ru.practicum.iteractionapi.dto.comment.CommentAdminDto;
-import ru.practicum.iteractionapi.feignapi.commentfeignclient.AdminCommentFeignClient;
 
 import java.util.List;
 

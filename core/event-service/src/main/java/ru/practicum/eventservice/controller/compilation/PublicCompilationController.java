@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.eventservice.service.CompilationService;
 import ru.practicum.iteractionapi.dto.event.CompilationDto;
-import ru.practicum.iteractionapi.feignapi.eventfeignclient.compilation.PublicCompilationFeignClient;
 
 import java.util.List;
 

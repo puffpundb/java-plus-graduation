@@ -6,15 +6,12 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import ru.practicum.eventservice.service.EventService;
+import ru.practicum.ewm.stats.proto.RecommendedEventProto;
 import ru.practicum.iteractionapi.dto.event.EventFullDto;
 import ru.practicum.iteractionapi.dto.event.EventSearchParams;
 import ru.practicum.iteractionapi.dto.event.EventShortDto;
-import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.PublicEventFeignClient;
 
 import java.util.List;
 
@@ -47,12 +44,24 @@ public class PublicEventController {
 				request);
 	}
 
-
 	@GetMapping("/{id}")
 	public EventFullDto getEventById(@PathVariable(value = "id") Long id,
-									 HttpServletRequest request) {
-		log.info("PublicEventController: вызов эндпоинта GET events/{}", id);
+									 @RequestHeader("X-EWM-USER-ID") long userId) {
+		log.info("PublicEventController: вызов эндпоинта GET events/{} от пользователя {}", id, userId);
+		return eventService.getById(userId, id);
+	}
 
-		return eventService.getById(id, request);
+	@GetMapping("/recommendations")
+	public List<RecommendedEventProto> getRecommendations(@RequestHeader("X-EWM-USER-ID") long userId,
+														  @RequestParam(defaultValue = "10") int maxResults) {
+		log.info("PublicEventController: GET /events/recommendations для userId={}, maxResults={}", userId, maxResults);
+		return eventService.getRecommendationsForUser(userId, maxResults);
+	}
+
+	@PutMapping("/{eventId}/like")
+	public void likeEvent(@PathVariable long eventId,
+						  @RequestHeader("X-EWM-USER-ID") long userId) {
+		log.info("PublicEventController: PUT /events/{}/like от userId={}", eventId, userId);
+		eventService.likeEvent(userId, eventId);
 	}
 }

@@ -11,7 +11,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.iteractionapi.dto.request.NewUserRequest;
 import ru.practicum.iteractionapi.dto.user.UserDto;
-import ru.practicum.iteractionapi.feignapi.userfeignclient.UserFeignClient;
 import ru.practicum.userservice.service.UserService;
 
 import java.util.List;

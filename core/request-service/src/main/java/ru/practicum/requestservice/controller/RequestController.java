@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 import ru.practicum.iteractionapi.dto.event.EventRequestStatusUpdateRequest;
 import ru.practicum.iteractionapi.dto.event.EventRequestStatusUpdateResult;
 import ru.practicum.iteractionapi.dto.request.ParticipationRequestDto;
-import ru.practicum.iteractionapi.feignapi.requestfeignclient.RequestFeignClient;
 import ru.practicum.requestservice.service.RequestService;
 
 import java.util.List;

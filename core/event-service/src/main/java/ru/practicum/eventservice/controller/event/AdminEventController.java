@@ -13,7 +13,6 @@ import ru.practicum.eventservice.service.EventService;
 import ru.practicum.iteractionapi.dto.event.AdminEventParam;
 import ru.practicum.iteractionapi.dto.event.EventFullDto;
 import ru.practicum.iteractionapi.dto.event.UpdateEventAdminRequest;
-import ru.practicum.iteractionapi.feignapi.eventfeignclient.event.AdminEventFeignClient;
 
 import java.util.List;
 
