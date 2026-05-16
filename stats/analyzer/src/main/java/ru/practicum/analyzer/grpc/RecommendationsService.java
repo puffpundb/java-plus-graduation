@@ -29,16 +29,30 @@ public class RecommendationsService extends RecommendationsControllerGrpc.Recomm
 	public void getInteractionsCount(InteractionsCountRequestProto request,
 									 StreamObserver<RecommendedEventProto> responseObserver) {
 		try {
-			for (Long eventId : request.getEventIdList()) {
-				Double total = interactionRepository.sumRatingByEventId(eventId);
-				responseObserver.onNext(RecommendedEventProto.newBuilder()
+			List<Long> eventIds = request.getEventIdList();
+			if (eventIds.isEmpty()) {
+				responseObserver.onCompleted();
+				return;
+			}
+
+			List<Interaction> interactions = interactionRepository.findAllByEventIdIn(eventIds);
+
+			Map<Long, Double> ratingSum = new HashMap<>();
+			for (Interaction interaction : interactions) {
+				ratingSum.merge(interaction.getEventId(), interaction.getRating(), Double::sum);
+			}
+
+			for (Long eventId : eventIds) {
+				double total = ratingSum.getOrDefault(eventId, 0.0);
+				RecommendedEventProto response = RecommendedEventProto.newBuilder()
 						.setEventId(eventId)
-						.setScore(total == null ? 0.0 : total)
-						.build());
+						.setScore(total)
+						.build();
+				responseObserver.onNext(response);
 			}
 			responseObserver.onCompleted();
 		} catch (Exception e) {
-			log.error("Error in getInteractionsCount", e);
+			log.error("Ошибка в getInteractionsCount", e);
 			responseObserver.onError(e);
 		}
 	}
@@ -108,20 +122,50 @@ public class RecommendationsService extends RecommendationsControllerGrpc.Recomm
 					.map(Interaction::getEventId)
 					.collect(Collectors.toSet());
 
-			Map<Long, List<Similarity>> candidateNeighbors = new HashMap<>();
-			for (Interaction interaction : userInteractions) {
-				long currentId = interaction.getEventId();
-				List<Similarity> sims = similarityRepository.findByEvent1OrEvent2(currentId, currentId);
-				for (Similarity sim : sims) {
-					long other = (sim.getEvent1() == currentId) ? sim.getEvent2() : sim.getEvent1();
-					if (seenEvents.contains(other)) continue;
-					candidateNeighbors.computeIfAbsent(other, k -> new ArrayList<>()).add(sim);
+			List<Similarity> allSimilarities = similarityRepository.findAllByEventAInOrEventBIn(seenEvents, seenEvents);
+			Map<Long, List<Similarity>> simsByEvent = new HashMap<>();
+			for (Similarity sim : allSimilarities) {
+				long eA = sim.getEvent1();
+				long eB = sim.getEvent2();
+				if (seenEvents.contains(eA)) {
+					simsByEvent.computeIfAbsent(eA, k -> new ArrayList<>()).add(sim);
+				}
+				if (seenEvents.contains(eB)) {
+					simsByEvent.computeIfAbsent(eB, k -> new ArrayList<>()).add(sim);
 				}
 			}
 
-			if (candidateNeighbors.isEmpty()) {
+			Set<Long> candidateEvents = new HashSet<>();
+			for (Interaction interaction : userInteractions) {
+				long currentId = interaction.getEventId();
+				List<Similarity> sims = simsByEvent.getOrDefault(currentId, Collections.emptyList());
+				for (Similarity sim : sims) {
+					long other = (sim.getEvent1() == currentId) ? sim.getEvent2() : sim.getEvent1();
+					if (!seenEvents.contains(other)) {
+						candidateEvents.add(other);
+					}
+				}
+			}
+
+			if (candidateEvents.isEmpty()) {
 				responseObserver.onCompleted();
 				return;
+			}
+
+			List<Interaction> ratingsForCandidates = interactionRepository.findAllByUserIdAndEventIdIn(userId, candidateEvents);
+			Map<Long, Double> ratingByEvent = ratingsForCandidates.stream()
+					.collect(Collectors.toMap(Interaction::getEventId, Interaction::getRating, (r1, r2) -> r1));
+
+			Map<Long, List<Similarity>> candidateNeighbors = new HashMap<>();
+			for (Interaction interaction : userInteractions) {
+				long currentId = interaction.getEventId();
+				List<Similarity> sims = simsByEvent.getOrDefault(currentId, Collections.emptyList());
+				for (Similarity sim : sims) {
+					long other = (sim.getEvent1() == currentId) ? sim.getEvent2() : sim.getEvent1();
+					if (candidateEvents.contains(other)) {
+						candidateNeighbors.computeIfAbsent(other, k -> new ArrayList<>()).add(sim);
+					}
+				}
 			}
 
 			List<RecommendedEventProto> recommendations = new ArrayList<>();
@@ -137,9 +181,7 @@ public class RecommendationsService extends RecommendationsControllerGrpc.Recomm
 				double similaritySum = 0.0;
 				for (Similarity sim : topNeighbors) {
 					long neighborId = (sim.getEvent1() == candidateId) ? sim.getEvent2() : sim.getEvent1();
-					double rating = interactionRepository.findByUserIdAndEventId(userId, neighborId)
-							.map(Interaction::getRating)
-							.orElse(0.0);
+					double rating = ratingByEvent.getOrDefault(neighborId, 0.0);
 					weightedSum += rating * sim.getSimilarity();
 					similaritySum += sim.getSimilarity();
 				}
